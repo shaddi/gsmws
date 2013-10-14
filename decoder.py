@@ -62,9 +62,11 @@ class GSMDecoder(threading.Thread):
             sysinfo2 = gsm.SystemInformationTwo(message)
             self.last_arfcns = sysinfo2.arfcns
             self.ncc_permitted = sysinfo2.ncc_permitted
+            logging.debug("SystemInformation2: %s" % str(sysinfo2.arfcns))
         elif message.startswith("GSM TAP Header"):
             gsmtap = gsm.GSMTAP(message)
             self.current_arfcn = gsmtap.arfcn
+            logging.debug("GSMTAP: Current ARFCN=%s" % str(gsmtap.arfcn))
 
 
 if __name__ == "__main__":
