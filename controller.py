@@ -97,7 +97,6 @@ class Controller(object):
             if cmd==None:
                 cmd = "tshark -V -n -i any udp dst port 4729"
             stream = gsm.command_stream(cmd)
-        #tshark_stream = gsm.command_stream("tshark -V -n -r /home/shaddi/Dropbox/bts-logs/bokondini/gsmtap/20131005-014817.gsmtap.pcap") # TODO finish this
         self.gsmd = decoder.GSMDecoder(stream)
         self.gsmd.run()
         last_arfcn_change = datetime.datetime.now()
