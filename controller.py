@@ -103,7 +103,7 @@ class Controller(object):
         while True:
             try:
                 td = (datetime.datetime.now() - last_arfcn_change)
-                if td.total_seconds() > self.NEIGHBOR_CYCLE_TIME:
+                if td.seconds > self.NEIGHBOR_CYCLE_TIME:
                     try:
                         new_arfcn = self.pick_new_safe_arfcn()
                         self.change_arfcn(new_arfcn)
