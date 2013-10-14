@@ -1,6 +1,7 @@
 import gsm
 import collections
 import threading
+import logging
 
 class GSMDecoder(threading.Thread):
     def __init__(self, stream, maxlen=100):
@@ -11,13 +12,14 @@ class GSMDecoder(threading.Thread):
         self.last_arfcns = []
         self.ncc_permitted = None
         self.ignore_reports = False # ignore measurement reports
-        self.reports = []
         self.msgs_seen = 0
 
         # TODO: keep these in stable storage (we lose history on every restart now)
         self.strengths_maxlen = maxlen
         self.max_strengths = {} # max strength ever seen for a given arfcn
         self.recent_strengths = {} # last 100 measurement reports for each arfcn
+
+        logging.basicConfig(format='%(asctime)s %(module)s %(funcName)s %(lineno)d %(levelname)s %(message)s', filename='/var/log/gsmws.log',level=logging.DEBUG)
 
     def rssi(self):
         # returns a dict with a weighted average of each arfcn
@@ -47,7 +49,7 @@ class GSMDecoder(threading.Thread):
                 return # skip for now, we don't have enough data to work with
 
             report = gsm.MeasurementReport(self.last_arfcns, self.current_arfcn, message)
-            self.reports.append(report) # TODO really should just log this somewhere
+            logging.info("MeasurementReport: " + str(report))
             for arfcn in report.current_strengths:
                 if arfcn not in self.max_strengths or report.current_strengths[arfcn] > self.max_strengths[arfcn]:
                     self.max_strengths[arfcn] = report.current_strengths[arfcn]
@@ -71,4 +73,4 @@ if __name__ == "__main__":
     gsmd = GSMDecoder(sys.stdin)
 
     duration = timeit.timeit(gsmd.run, number=1)
-    print "Processed %d headers (%d interesting reports) in %.4f seconds (%.2f msgs/sec)" % (gsmd.msgs_seen, len(gsmd.reports), duration, gsmd.msgs_seen / duration)
+    print "Processed %d headers in %.4f seconds (%.2f msgs/sec)" % (gsmd.msgs_seen, duration, gsmd.msgs_seen / duration)

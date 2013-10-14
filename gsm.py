@@ -77,6 +77,9 @@ GSM A-I/F DTAP - Measurement Report
 
         return strengths
 
+    def __str__(self):
+        return "%s %s" % (self.timestamp, str(self.current_strengths))
+
 
 class GSMTAP(object):
     def __init__(self, message):
