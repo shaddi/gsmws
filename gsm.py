@@ -35,6 +35,7 @@ class MeasurementReport(object):
         self.timestamp = datetime.datetime.now()
         self.result_msg = result_msg
         self.current_strengths = self.parse(last_arfcns, current_arfcn)
+        self.valid = False
 
     @staticmethod
     def sample():
@@ -65,7 +66,11 @@ GSM A-I/F DTAP - Measurement Report
         serving_strength = int(regex['current_strength'].findall(result_msg)[0])
         strengths[current_arfcn] = serving_strength
 
-        num_cells = int(regex['num_cells'].findall(result_msg)[0])
+        try:
+            num_cells = int(regex['num_cells'].findall(result_msg)[0])
+        except IndexError:
+            return {}
+
         neighbor_reports = regex['strengths'].findall(result_msg)
         #print neighbor_reports
 
@@ -75,6 +80,7 @@ GSM A-I/F DTAP - Measurement Report
             #print int(report[0])
             strengths[last_arfcns[int(report[1])]] = int(report[0])
 
+        self.valid = True
         return strengths
 
     def __str__(self):

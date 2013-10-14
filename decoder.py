@@ -49,14 +49,15 @@ class GSMDecoder(threading.Thread):
                 return # skip for now, we don't have enough data to work with
 
             report = gsm.MeasurementReport(self.last_arfcns, self.current_arfcn, message)
-            logging.info("MeasurementReport: " + str(report))
-            for arfcn in report.current_strengths:
-                if arfcn not in self.max_strengths or report.current_strengths[arfcn] > self.max_strengths[arfcn]:
-                    self.max_strengths[arfcn] = report.current_strengths[arfcn]
-                if arfcn in self.recent_strengths:
-                    self.recent_strengths[arfcn].append(report.current_strengths[arfcn])
-                else:
-                    self.recent_strengths[arfcn] = collections.deque([report.current_strengths[arfcn]],maxlen=self.strengths_maxlen)
+            if report.valid:
+                logging.info("MeasurementReport: " + str(report))
+                for arfcn in report.current_strengths:
+                    if arfcn not in self.max_strengths or report.current_strengths[arfcn] > self.max_strengths[arfcn]:
+                        self.max_strengths[arfcn] = report.current_strengths[arfcn]
+                    if arfcn in self.recent_strengths:
+                        self.recent_strengths[arfcn].append(report.current_strengths[arfcn])
+                    else:
+                        self.recent_strengths[arfcn] = collections.deque([report.current_strengths[arfcn]],maxlen=self.strengths_maxlen)
         elif message.startswith("GSM CCCH - System Information Type 2"):
             sysinfo2 = gsm.SystemInformationTwo(message)
             self.last_arfcns = sysinfo2.arfcns
