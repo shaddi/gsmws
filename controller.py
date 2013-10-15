@@ -92,6 +92,7 @@ class Controller(object):
             arfcn = items[1]
             if (ts - now).seconds > 4*self.NEIGHBOR_CYCLE_TIME:
                 self.gsmwsdb.execute("DELETE FROM AVAIL_ARFCN WHERE ARFCN=?", (arfcn,))
+                print "deleted ARFCN %s" % arfcn
         self.gsmwsdb.commit()
 
     def safe_arfcns(self):
