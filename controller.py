@@ -40,7 +40,7 @@ class Controller(object):
         "sudo service restart openbts". But we can't, because OpenBTS is a disaster.
         EVEN WORSE, we assume that we're in OpenBTS's runloop which will restart us
         automatically. What a mess... """
-        logging.alert("Restarting OpenBTS...")
+        logging.warning("Restarting OpenBTS...")
         envoy.run("killall %s %s" % (OPENBTS_PROCESS_NAME, TRANSCEIVER_PROCESS_NAME))
         time.sleep(10)
         if len(envoy.run("ps aux | grep './OpenBTS'"))==0:
@@ -55,7 +55,7 @@ class Controller(object):
         """ Change OpenBTS to use a new ARFCN. By default, just update the DB, but
         don't actually restart OpenBTS. If immediate=True, restart OpenBTS too. """
         self.openbtsdb.execute("UPDATE CONFIG SET VALUESTRING=? WHERE KEYSTRING='GSM.Radio.C0'", (new_arfcn,))
-        logging.alert("Updated ARFCN to %s" % new_arfcn)
+        logging.warning("Updated ARFCN to %s" % new_arfcn)
         if immediate:
             self.restart_openbts()
 
