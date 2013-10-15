@@ -55,7 +55,13 @@ class Controller(object):
         don't actually restart OpenBTS. If immediate=True, restart OpenBTS too. """
         self.openbtsdb.execute("UPDATE CONFIG SET VALUESTRING=? WHERE KEYSTRING='GSM.Radio.C0'", (new_arfcn,))
         self.openbtsdb.commit()
-        logging.warning("Updated ARFCN to %s" % new_arfcn)
+        try:
+            assert int(new_arfcn) <= 124
+            assert int(new_arfcn) > 0
+        except:
+            logging.error("Invalid ARFCN: %s" % new_arfcn)
+            return
+        logging.warning("Updated next ARFCN to %s" % new_arfcn)
         if immediate:
             self.restart_openbts()
 
@@ -102,17 +108,21 @@ class Controller(object):
             stream = gsm.command_stream(cmd)
         self.gsmd = decoder.GSMDecoder(stream, loglvl=self.loglvl)
         self.gsmd.start()
-        last_arfcn_change = datetime.datetime.now()
+        last_cycle_time = datetime.datetime.now()
         while True:
             try:
-                td = (datetime.datetime.now() - last_arfcn_change)
+                td = (datetime.datetime.now() - last_cycle_time)
+                print td.seconds
                 if td.seconds > self.NEIGHBOR_CYCLE_TIME:
                     try:
                         new_arfcn = self.pick_new_safe_arfcn()
                         self.change_arfcn(new_arfcn)
                     except IndexError:
+                        logging.error("Unable to pick new safe ARFCN!")
                         pass # just don't pick for now
                     self.set_new_neighbor_list(self.pick_new_neighbors())
+                    last_cycle_time = datetime.datetime.now()
+
                 logging.info("Current ARFCN: %s" % self.gsmd.current_arfcn)
 
                 rssis = self.gsmd.rssi()
