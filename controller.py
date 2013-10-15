@@ -50,6 +50,8 @@ class Controller(object):
         # THIS IS THE OFFICIAL WAY TO DO THIS
         # IN THE NAME OF ALL THAT IS HOLY
         envoy.run("echo -n 'config GSM.CellSelection.Neighbors %s' | sudo /OpenBTS/OpenBTSDo" % neighbor_string)
+
+        # ignore measurement requests for a while
         logging.info("New neighbor list: %s" % neighbor_string)
 
     def change_arfcn(self, new_arfcn, immediate=False):
@@ -82,6 +84,16 @@ class Controller(object):
             self.gsmwsdb.execute("INSERT INTO AVAIL_ARFCN VALUES(?,?,?)", (timestamp, arfcn, rssis[arfcn]))
         self.gsmwsdb.commit()
 
+        # now, expire!
+        now = datetime.datetime.now()
+        res = self.gsmwsdb.execute("SELECT TIMESTAMP, ARFCN FROM AVAIL_ARFCN")
+        for items in res.fetchall():
+            ts = datetime.datetime.strptime(items[0], "%Y-%m-%d %H:%M:%S.%f")
+            arfcn = items[1]
+            if (ts - now).seconds > 4*self.NEIGHBOR_CYCLE_TIME:
+                self.gsmwsdb.execute("DELETE FROM AVAIL_ARFCN WHERE ARFCN=?", (arfcn,))
+        self.gsmwsdb.commit()
+
     def safe_arfcns(self):
         """ Get the ARFCNs which probably have no other users """
         res = self.gsmwsdb.execute("SELECT ARFCN, RSSI FROM AVAIL_ARFCN")
@@ -111,9 +123,14 @@ class Controller(object):
         self.gsmd = decoder.GSMDecoder(stream, loglvl=self.loglvl)
         self.gsmd.start()
         last_cycle_time = datetime.datetime.now()
+        ignored_since = datetime.datetime.now()
         while True:
             try:
-                td = (datetime.datetime.now() - last_cycle_time)
+                now = datetime.datetime.now()
+                if self.gsmd.ignore_reports and (now - ignored_since) > 120:
+                    self.gsmd.ignore_reports = False
+
+                td = (now - last_cycle_time)
                 if td.seconds > self.NEIGHBOR_CYCLE_TIME:
                     try:
                         new_arfcn = self.pick_new_safe_arfcn()
@@ -122,7 +139,9 @@ class Controller(object):
                         logging.error("Unable to pick new safe ARFCN!")
                         pass # just don't pick for now
                     self.set_new_neighbor_list(self.pick_new_neighbors())
-                    last_cycle_time = datetime.datetime.now()
+                    self.gsmd.ignore_reports = True
+                    ignored_since = now
+                    last_cycle_time = now
 
                 logging.info("Current ARFCN: %s" % self.gsmd.current_arfcn)
 
