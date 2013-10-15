@@ -127,7 +127,7 @@ class Controller(object):
         while True:
             try:
                 now = datetime.datetime.now()
-                if self.gsmd.ignore_reports and (now - ignored_since) > 120:
+                if self.gsmd.ignore_reports and (now - ignored_since).seconds > 120:
                     self.gsmd.ignore_reports = False
 
                 td = (now - last_cycle_time)
