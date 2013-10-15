@@ -19,10 +19,10 @@ The controller has three tasks:
 """
 class Controller(object):
     def __init__(self, openbts_db_loc, openbts_proc, trans_proc, nct, sleep, gsmwsdb, loglvl=logging.DEBUG):
-        self.OPENBTS_PROCESS_NAME="OpenBTS"
-        self.TRANSCEIVER_PROCESS_NAME="transceiver"
-        self.NEIGHBOR_CYCLE_TIME = 4*60*60 # seconds to wait before switching up the neighbor list
-        self.SLEEP_TIME = 10 # seconds between rssi checks
+        self.OPENBTS_PROCESS_NAME=openbts_proc
+        self.TRANSCEIVER_PROCESS_NAME=trans_proc
+        self.NEIGHBOR_CYCLE_TIME = nct # seconds to wait before switching up the neighbor list
+        self.SLEEP_TIME = sleep # seconds between rssi checks
 
         self.gsmwsdb = sqlite3.connect(gsmwsdb)
         self.openbtsdb = sqlite3.connect(openbts_db_loc)
