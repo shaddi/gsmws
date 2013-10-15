@@ -90,7 +90,7 @@ class Controller(object):
         for items in res.fetchall():
             ts = datetime.datetime.strptime(items[0], "%Y-%m-%d %H:%M:%S.%f")
             arfcn = items[1]
-            if (ts - now).seconds > 4*self.NEIGHBOR_CYCLE_TIME:
+            if (now - ts).seconds > 4*self.NEIGHBOR_CYCLE_TIME:
                 self.gsmwsdb.execute("DELETE FROM AVAIL_ARFCN WHERE ARFCN=?", (arfcn,))
                 print "deleted ARFCN %s" % arfcn
         self.gsmwsdb.commit()
