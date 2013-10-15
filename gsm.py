@@ -34,8 +34,8 @@ class MeasurementReport(object):
     def __init__(self, last_arfcns, current_arfcn, result_msg):
         self.timestamp = datetime.datetime.now()
         self.result_msg = result_msg
-        self.current_strengths = self.parse(last_arfcns, current_arfcn)
         self.valid = False
+        self.current_strengths = self.parse(last_arfcns, current_arfcn)
 
     @staticmethod
     def sample():
