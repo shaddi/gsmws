@@ -46,8 +46,10 @@ class Controller(object):
 
     def set_new_neighbor_list(self, neighbors):
         neighbor_string = " ".join([str(_) for _  in neighbors])
-        self.openbtsdb.execute("UPDATE CONFIG SET VALUESTRING=? WHERE KEYSTRING='GSM.CellSelection.Neighbors'", (neighbor_string,))
-        self.openbtsdb.commit()
+
+        # THIS IS THE OFFICIAL WAY TO DO THIS
+        # IN THE NAME OF ALL THAT IS HOLY
+        envoy.run("echo -n 'config GSM.CellSelection.Neighbors %s' | sudo /OpenBTS/OpenBTSDo" % neighbor_string)
         logging.info("New neighbor list: %s" % neighbor_string)
 
     def change_arfcn(self, new_arfcn, immediate=False):
@@ -112,7 +114,6 @@ class Controller(object):
         while True:
             try:
                 td = (datetime.datetime.now() - last_cycle_time)
-                print td.seconds
                 if td.seconds > self.NEIGHBOR_CYCLE_TIME:
                     try:
                         new_arfcn = self.pick_new_safe_arfcn()
