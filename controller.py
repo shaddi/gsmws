@@ -24,10 +24,8 @@ class Controller(object):
         self.NEIGHBOR_CYCLE_TIME = 4*60*60 # seconds to wait before switching up the neighbor list
         self.SLEEP_TIME = 10 # seconds between rssi checks
 
-        GSMWS_DB = expanduser("~") + "/gsmws.db"
-        OPENBTS_DB_LOC="/etc/OpenBTS/OpenBTS.db"
-        self.gsmwsdb = sqlite3.connect(GSMWS_DB)
-        self.openbtsdb = sqlite3.connect(OPENBTS_DB_LOC)
+        self.gsmwsdb = sqlite3.connect(gsmwsdb)
+        self.openbtsdb = sqlite3.connect(openbts_db_loc)
 
         self.loglvl = loglvl
         logging.basicConfig(format='%(asctime)s %(module)s %(funcName)s %(lineno)d %(levelname)s %(message)s', filename='/var/log/gsmws.log',level=loglvl)
@@ -49,12 +47,14 @@ class Controller(object):
     def set_new_neighbor_list(self, neighbors):
         neighbor_string = " ".join([str(_) for _  in neighbors])
         self.openbtsdb.execute("UPDATE CONFIG SET VALUESTRING=? WHERE KEYSTRING='GSM.CellSelection.Neighbors'", (neighbor_string,))
+        self.openbtsdb.commit()
         logging.info("New neighbor list: %s" % neighbor_string)
 
     def change_arfcn(self, new_arfcn, immediate=False):
         """ Change OpenBTS to use a new ARFCN. By default, just update the DB, but
         don't actually restart OpenBTS. If immediate=True, restart OpenBTS too. """
         self.openbtsdb.execute("UPDATE CONFIG SET VALUESTRING=? WHERE KEYSTRING='GSM.Radio.C0'", (new_arfcn,))
+        self.openbtsdb.commit()
         logging.warning("Updated ARFCN to %s" % new_arfcn)
         if immediate:
             self.restart_openbts()
@@ -72,6 +72,7 @@ class Controller(object):
         for arfcn in [_ for _ in rssis if _ not in existing]:
             # do insert
             self.gsmwsdb.execute("INSERT INTO AVAIL_ARFCN VALUES(?,?,?)", (timestamp, arfcn, rssis[arfcn]))
+        self.gsmwsdb.commit()
 
     def safe_arfcns(self):
         """ Get the ARFCNs which probably have no other users """
