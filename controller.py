@@ -28,6 +28,8 @@ class Controller(object):
         OPENBTS_DB_LOC="/etc/OpenBTS/OpenBTS.db"
         self.gsmwsdb = sqlite3.connect(GSMWS_DB)
         self.openbtsdb = sqlite3.connect(OPENBTS_DB_LOC)
+
+        self.loglvl = loglvl
         logging.basicConfig(format='%(asctime)s %(module)s %(funcName)s %(lineno)d %(levelname)s %(message)s', filename='/var/log/gsmws.log',level=loglvl)
 
     def initdb(self):
@@ -97,8 +99,8 @@ class Controller(object):
             if cmd==None:
                 cmd = "tshark -V -n -i any udp dst port 4729"
             stream = gsm.command_stream(cmd)
-        self.gsmd = decoder.GSMDecoder(stream)
-        self.gsmd.run()
+        self.gsmd = decoder.GSMDecoder(stream, loglvl=self.loglvl)
+        self.gsmd.start()
         last_arfcn_change = datetime.datetime.now()
         while True:
             try:
@@ -130,6 +132,7 @@ if __name__ == "__main__":
     parser.add_argument('--gsmwsdb', type=str, action='store', default=expanduser("~") + "/gsmws.db", help="Where to store the gsmws.db file")
     parser.add_argument('--cmd', type=str, action='store', default=None, help="Command string to run.")
     parser.add_argument('--stdin', action='store_true', help="Read from STDIN")
+    parser.add_argument('--debug', action='store_true', help="Enable debug logging")
     args = parser.parse_args()
 
     #OPENBTS_DB_LOC="/etc/OpenBTS/OpenBTS.db"
@@ -146,7 +149,12 @@ if __name__ == "__main__":
     SLEEP_TIME = args.sleep # seconds between rssi checks
     GSMWS_DB = args.gsmwsdb
 
-    c = Controller(OPENBTS_DB_LOC, OPENBTS_PROCESS_NAME, TRANSCEIVER_PROCESS_NAME, NEIGHBOR_CYCLE_TIME, SLEEP_TIME, GSMWS_DB)
+    if args.debug:
+        loglvl = logging.DEBUG
+    else:
+        loglvl = logging.INFO
+
+    c = Controller(OPENBTS_DB_LOC, OPENBTS_PROCESS_NAME, TRANSCEIVER_PROCESS_NAME, NEIGHBOR_CYCLE_TIME, SLEEP_TIME, GSMWS_DB, loglvl=loglvl)
     if args.stdin:
         c.main(stream=sys.stdin)
     else:

@@ -4,7 +4,7 @@ import threading
 import logging
 
 class GSMDecoder(threading.Thread):
-    def __init__(self, stream, maxlen=100):
+    def __init__(self, stream, maxlen=100, loglvl=logging.INFO):
         threading.Thread.__init__(self)
         self.stream = stream
         self.current_message = ""
@@ -19,7 +19,7 @@ class GSMDecoder(threading.Thread):
         self.max_strengths = {} # max strength ever seen for a given arfcn
         self.recent_strengths = {} # last 100 measurement reports for each arfcn
 
-        logging.basicConfig(format='%(asctime)s %(module)s %(funcName)s %(lineno)d %(levelname)s %(message)s', filename='/var/log/gsmws.log',level=logging.DEBUG)
+        logging.basicConfig(format='%(asctime)s %(module)s %(funcName)s %(lineno)d %(levelname)s %(message)s', filename='/var/log/gsmws.log',level=loglvl)
 
     def rssi(self):
         # returns a dict with a weighted average of each arfcn
@@ -29,7 +29,7 @@ class GSMDecoder(threading.Thread):
         res = {}
         for arfcn in self.max_strengths:
             tot = self.max_strengths[arfcn] + sum(self.recent_strengths[arfcn])
-            res[arfcn] = float(tot) / (1 + len(self.recent_strengths))
+            res[arfcn] = float(tot) / (1 + len(self.recent_strengths[arfcn]))
         return res
 
 
