@@ -48,14 +48,12 @@ class GSMDecoder(threading.Thread):
 
     def __write_rssi(self):
         if not self.rssi_queue.empty():
-            print "writing rssi"
             while not self.rssi_queue.empty():
                 try:
                     query = self.rssi_queue.get()
                     self.gsmwsdb.execute(query[0], query[1])
                 except Queue.Empty:
                     break
-            print "committing rssi"
             self.gsmwsdb.commit()
 
 
