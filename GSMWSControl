@@ -3,6 +3,7 @@
 if __name__ == "__main__":
     import argparse
     import logging
+    import sys
     from os.path import expanduser
 
     from gsmws import controller
