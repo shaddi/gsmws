@@ -2,9 +2,12 @@ import gsm
 import collections
 import threading
 import logging
+import datetime
+import Queue
+import sqlite3
 
 class GSMDecoder(threading.Thread):
-    def __init__(self, stream, maxlen=100, loglvl=logging.INFO):
+    def __init__(self, stream, gsmwsdb_loc="/tmp/gsmws.db", maxlen=100, loglvl=logging.INFO):
         threading.Thread.__init__(self)
         self.stream = stream
         self.current_message = ""
@@ -14,33 +17,103 @@ class GSMDecoder(threading.Thread):
         self.ignore_reports = False # ignore measurement reports
         self.msgs_seen = 0
 
-        # TODO: keep these in stable storage (we lose history on every restart now)
+        self.gsmwsdb_loc = gsmwsdb_loc
+        self.gsmwsdb = None # this gets created in run()
+
+        self.rssi_queue = Queue.Queue()
+
         self.strengths_maxlen = maxlen
         self.max_strengths = {} # max strength ever seen for a given arfcn
         self.recent_strengths = {} # last 100 measurement reports for each arfcn
-
         logging.basicConfig(format='%(asctime)s %(module)s %(funcName)s %(lineno)d %(levelname)s %(message)s', filename='/var/log/gsmws.log',level=loglvl)
+
+
+    def _populate_strengths(self):
+        """
+        Rather than storing our history, we can just store the current mean for
+        each ARFCN, plus the number of recent readings we have. On start, we
+        just add N instances of each ARFCN's mean to the list. This has the
+        downside of being not general (only works with means) and losing
+        history potentially (i.e., we die twice in a row: we'll repopulate with
+        just the mean value from before).
+        """
+        # populate the above from stable
+        max_strengths = self.gsmwsdb.execute("SELECT ARFCN, RSSI FROM MAX_STRENGTHS").fetchall()
+        for item in max_strengths:
+            self.max_strengths[item[0]] = item[1]
+
+        recent = self.gsmwsdb.execute("SELECT ARFCN, RSSI, COUNT FROM AVG_STRENGTHS").fetchall()
+        for item in recent:
+            self.recent_strengths[item[0]] = [item[1] for _ in range(0,item[2])]
+
+    def __write_rssi(self):
+        if not self.rssi_queue.empty():
+            print "writing rssi"
+            while not self.rssi_queue.empty():
+                try:
+                    query = self.rssi_queue.get()
+                    self.gsmwsdb.execute(query[0], query[1])
+                except Queue.Empty:
+                    break
+            print "committing rssi"
+            self.gsmwsdb.commit()
+
 
     def rssi(self):
         # returns a dict with a weighted average of each arfcn
         # we base this only on last known data for an ARFCN -- lack of report
         # doesn't mean anything, but if an arfcn is in the neighbor list and we
         # don't get a report for it, we count that as -1.
+
         res = {}
+        now = datetime.datetime.now()
+
         for arfcn in self.max_strengths:
             tot = self.max_strengths[arfcn] + sum(self.recent_strengths[arfcn])
             res[arfcn] = float(tot) / (1 + len(self.recent_strengths[arfcn]))
+
+            # now, update the db
+            recent_avg = sum(self.recent_strengths[arfcn]) / float(len(self.recent_strengths[arfcn]))
+            self.rssi_queue.put(("DELETE FROM AVG_STRENGTHS WHERE ARFCN=?", (arfcn,)))
+            self.rssi_queue.put(("INSERT INTO AVG_STRENGTHS VALUES (?, ?, ?, ?)", (now, arfcn, recent_avg, len(self.recent_strengths[arfcn]))))
+
         return res
 
 
     def run(self):
+        self.gsmwsdb = sqlite3.connect(self.gsmwsdb_loc)
+        self._populate_strengths()
+
+        last_rssi_update = datetime.datetime.now()
         for line in self.stream:
+            self.__write_rssi()
             if line.startswith("    "):
                 #print "appending"
                 self.current_message += "%s" % line
             else:
                 self.process(self.current_message)
                 self.current_message = line
+
+    def update_max_strength(self, arfcn, value):
+        now = datetime.datetime.now()
+
+        # FIXME potential leak here: we could record max values twice if we're
+        # not in sync w/ db, but that should only happen rarely
+        if arfcn not in self.max_strengths:
+            self.max_strengths[arfcn] = value
+            self.gsmwsdb.execute("INSERT INTO MAX_STRENGTHS VALUES(?,?,?)", (now, arfcn, value))
+        elif value > self.max_strengths[arfcn]:
+            self.max_strengths[arfcn] = value
+            self.gsmwsdb.execute("UPDATE MAX_STRENGTHS SET TIMESTAMP=?, RSSI=? WHERE ARFCN=?", (now, value, arfcn))
+        self.gsmwsdb.commit()
+
+
+
+    def update_recent_strengths(self, arfcn, value):
+        if arfcn in self.recent_strengths:
+            self.recent_strengths[arfcn].append(value)
+        else:
+            self.recent_strengths[arfcn] = collections.deque([value],maxlen=self.strengths_maxlen)
 
     def process(self, message):
         self.msgs_seen += 1
@@ -52,12 +125,12 @@ class GSMDecoder(threading.Thread):
             if report.valid:
                 logging.info("MeasurementReport: " + str(report))
                 for arfcn in report.current_strengths:
-                    if arfcn not in self.max_strengths or report.current_strengths[arfcn] > self.max_strengths[arfcn]:
-                        self.max_strengths[arfcn] = report.current_strengths[arfcn]
-                    if arfcn in self.recent_strengths:
-                        self.recent_strengths[arfcn].append(report.current_strengths[arfcn])
-                    else:
-                        self.recent_strengths[arfcn] = collections.deque([report.current_strengths[arfcn]],maxlen=self.strengths_maxlen)
+                    self.update_max_strength(arfcn,report.current_strengths[arfcn])
+                    self.update_recent_strengths(arfcn, report.current_strengths[arfcn])
+
+                for arfcn in report.current_bsics:
+                    if report.current_bsics[arfcn] != None:
+                        logging.warning("ZOUNDS! AN ENEMY BSIC: %d (ARFCN %d)" % (report.current_bsics[arfcn], arfcn))
         elif message.startswith("GSM CCCH - System Information Type 2"):
             sysinfo2 = gsm.SystemInformationTwo(message)
             self.last_arfcns = sysinfo2.arfcns

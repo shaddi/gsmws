@@ -24,6 +24,7 @@ class Controller(object):
         self.NEIGHBOR_CYCLE_TIME = nct # seconds to wait before switching up the neighbor list
         self.SLEEP_TIME = sleep # seconds between rssi checks
 
+        self.gsmwsdb_loc = gsmwsdb
         self.gsmwsdb = sqlite3.connect(gsmwsdb)
         self.openbtsdb = sqlite3.connect(openbts_db_loc)
 
@@ -32,6 +33,8 @@ class Controller(object):
 
     def initdb(self):
         self.gsmwsdb.execute("CREATE TABLE IF NOT EXISTS AVAIL_ARFCN (TIMESTAMP TEXT NOT NULL, ARFCN INTEGER, RSSI REAL);")
+        self.gsmwsdb.execute("CREATE TABLE IF NOT EXISTS MAX_STRENGTHS (TIMESTAMP TEXT NOT NULL, ARFCN INTEGER, RSSI REAL);")
+        self.gsmwsdb.execute("CREATE TABLE IF NOT EXISTS AVG_STRENGTHS (TIMESTAMP TEXT NOT NULL, ARFCN INTEGER, RSSI REAL, COUNT INTEGER);")
 
     def restart_openbts(self):
         """ TODO OpenBTS should really be a service, and we should really just say
@@ -121,7 +124,7 @@ class Controller(object):
             if cmd==None:
                 cmd = "tshark -V -n -i any udp dst port 4729"
             stream = gsm.command_stream(cmd)
-        self.gsmd = decoder.GSMDecoder(stream, loglvl=self.loglvl)
+        self.gsmd = decoder.GSMDecoder(stream, self.gsmwsdb_loc, loglvl=self.loglvl)
         self.gsmd.start()
         last_cycle_time = datetime.datetime.now()
         ignored_since = datetime.datetime.now()
@@ -147,9 +150,14 @@ class Controller(object):
                 logging.info("Current ARFCN: %s" % self.gsmd.current_arfcn)
 
                 rssis = self.gsmd.rssi()
+
+                # TODO this might actually be the right behavior -- why does
+                # the fact we used an arfcn before change whether we need to
+                # get a consistent clear scan before using it again? As long as
+                # it becomes a candidate again later this is fine.
+                #del(rssis[self.gsmd.current_arfcn]) # ignore readings for our own C0 (else, we never consider our own used arfcn safe until we scan it 100 times again!)
                 self.update_rssi_db(rssis)
                 logging.info("Safe ARFCNs: %s" % str(self.safe_arfcns()))
                 time.sleep(self.SLEEP_TIME)
             except KeyboardInterrupt:
                 break
-
