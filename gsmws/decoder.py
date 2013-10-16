@@ -115,6 +115,10 @@ class GSMDecoder(threading.Thread):
         else:
             self.recent_strengths[arfcn] = collections.deque([value],maxlen=self.strengths_maxlen)
 
+        # force a write whenever we update strength
+        self.rssi()
+        self.__write_rssi()
+
     def process(self, message):
         self.msgs_seen += 1
         if message.startswith("GSM A-I/F DTAP - Measurement Report"):
