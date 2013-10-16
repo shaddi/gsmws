@@ -21,7 +21,7 @@ well as a moving average of the RSSI for each.
 
 regex = {'current_strength': re.compile("RXLEV-FULL-SERVING-CELL:.*dBm \((\d+)\)"),
          'num_cells': re.compile("NO-NCELL-M:.*result \((\d+)\)"),
-         'strengths': re.compile("RXLEV-NCELL: (\d+)\n.*= BCCH-FREQ-NCELL: (\d+)"),
+         'cell_report': re.compile("RXLEV-NCELL: (\d+)\n.*= BCCH-FREQ-NCELL: (\d+)\n.* = BSIC-NCELL: (\d)"),
          'arfcn': re.compile("GSM TAP Header, ARFCN: (\d+)"),
          'sys_info_2': re.compile("List of ARFCNs =([ \d]+).*(\d{4} \d{4}) = NCC Permitted",re.DOTALL),
          }
@@ -35,7 +35,7 @@ class MeasurementReport(object):
         self.timestamp = datetime.datetime.now()
         self.result_msg = result_msg
         self.valid = False
-        self.current_strengths = self.parse(last_arfcns, current_arfcn)
+        self.current_strengths, self.current_bsics = self.parse(last_arfcns, current_arfcn)
 
     @staticmethod
     def sample():
@@ -62,7 +62,8 @@ GSM A-I/F DTAP - Measurement Report
     def parse(self, last_arfcns, current_arfcn, result_msg=None):
         if result_msg == None:
             result_msg = self.result_msg
-        strengths = dict(zip(last_arfcns,[-1 for _ in range(0,len(last_arfcns))]))
+        strengths = dict(zip(last_arfcns,[-0.001 for _ in range(0,len(last_arfcns))]))
+        bsics = dict(zip(last_arfcns,[None for _ in range(0,len(last_arfcns))]))
         serving_strength = int(regex['current_strength'].findall(result_msg)[0])
         strengths[current_arfcn] = serving_strength
 
@@ -71,7 +72,7 @@ GSM A-I/F DTAP - Measurement Report
         except IndexError:
             return {}
 
-        neighbor_reports = regex['strengths'].findall(result_msg)
+        neighbor_reports = regex['cell_report'].findall(result_msg)
         #print neighbor_reports
 
         assert len(neighbor_reports) == num_cells
@@ -79,9 +80,15 @@ GSM A-I/F DTAP - Measurement Report
             #print last_arfcns[int(report[1])]
             #print int(report[0])
             strengths[last_arfcns[int(report[1])]] = int(report[0])
+            if not current_arfcn == last_arfcns[int(report[1])]:
+                # TODO: ignore current arfcn bsic for now. This could be a good
+                # way to detect same-channel interference w/ a single ARFCN: if
+                # the measurement report doesn't match our current BSIC then we
+                # can safely assume we're seeing another tower!
+                bsics[last_arfcns[int(report[1])]] = int(report[2])
 
         self.valid = True
-        return strengths
+        return strengths, bsics
 
     def __str__(self):
         return "%s %s" % (self.timestamp, str(self.current_strengths))
