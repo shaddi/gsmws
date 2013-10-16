@@ -70,7 +70,7 @@ GSM A-I/F DTAP - Measurement Report
         try:
             num_cells = int(regex['num_cells'].findall(result_msg)[0])
         except IndexError:
-            return {}
+            return {}, {}
 
         neighbor_reports = regex['cell_report'].findall(result_msg)
         #print neighbor_reports
