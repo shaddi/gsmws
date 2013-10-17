@@ -44,7 +44,7 @@ class GSMDecoder(threading.Thread):
 
         recent = self.gsmwsdb.execute("SELECT ARFCN, RSSI, COUNT FROM AVG_STRENGTHS").fetchall()
         for item in recent:
-            self.recent_strengths[item[0]] = [item[1] for _ in range(0,item[2])]
+            self.recent_strengths[item[0]] = collections.deque([item[1] for _ in range(0,item[2])],maxlen=self.strengths_maxlen)
 
     def __write_rssi(self):
         if not self.rssi_queue.empty():
