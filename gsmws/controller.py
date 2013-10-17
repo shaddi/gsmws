@@ -4,6 +4,7 @@ import random
 import sqlite3
 import logging
 import sys
+import threading
 from os.path import expanduser
 
 import envoy
@@ -24,7 +25,8 @@ class Controller(object):
         self.NEIGHBOR_CYCLE_TIME = nct # seconds to wait before switching up the neighbor list
         self.SLEEP_TIME = sleep # seconds between rssi checks
 
-        self.gsmwsdb_loc = gsmwsdb
+        self.gsmwsdb_location = gsmwsdb
+        self.gsmwsdb_lock = threading.Lock()
         self.gsmwsdb = sqlite3.connect(gsmwsdb)
         self.openbtsdb = sqlite3.connect(openbts_db_loc)
 
@@ -33,9 +35,10 @@ class Controller(object):
         logging.warning("New controller started.")
 
     def initdb(self):
-        self.gsmwsdb.execute("CREATE TABLE IF NOT EXISTS AVAIL_ARFCN (TIMESTAMP TEXT NOT NULL, ARFCN INTEGER, RSSI REAL);")
-        self.gsmwsdb.execute("CREATE TABLE IF NOT EXISTS MAX_STRENGTHS (TIMESTAMP TEXT NOT NULL, ARFCN INTEGER, RSSI REAL);")
-        self.gsmwsdb.execute("CREATE TABLE IF NOT EXISTS AVG_STRENGTHS (TIMESTAMP TEXT NOT NULL, ARFCN INTEGER, RSSI REAL, COUNT INTEGER);")
+        with self.gsmwsdb_lock:
+            self.gsmwsdb.execute("CREATE TABLE IF NOT EXISTS AVAIL_ARFCN (TIMESTAMP TEXT NOT NULL, ARFCN INTEGER, RSSI REAL);")
+            self.gsmwsdb.execute("CREATE TABLE IF NOT EXISTS MAX_STRENGTHS (TIMESTAMP TEXT NOT NULL, ARFCN INTEGER, RSSI REAL);")
+            self.gsmwsdb.execute("CREATE TABLE IF NOT EXISTS AVG_STRENGTHS (TIMESTAMP TEXT NOT NULL, ARFCN INTEGER, RSSI REAL, COUNT INTEGER);")
 
     def restart_openbts(self):
         """ TODO OpenBTS should really be a service, and we should really just say
@@ -75,33 +78,35 @@ class Controller(object):
 
     def update_rssi_db(self, rssis):
         # rssis: A dict of ARFCN->RSSI that's up to date as of now (it already captures our historical knowledge)
-        logging.info("Updating RSSIs: %s" % rssis)
-        existing = [arfcn for res in self.gsmwsdb.execute("SELECT ARFCN FROM AVAIL_ARFCN").fetchall() for arfcn in res]
-        timestamp = datetime.datetime.now()
+        with self.gsmwsdb_lock:
+            logging.info("Updating RSSIs: %s" % rssis)
+            existing = [arfcn for res in self.gsmwsdb.execute("SELECT ARFCN FROM AVAIL_ARFCN").fetchall() for arfcn in res]
+            timestamp = datetime.datetime.now()
 
-        for arfcn in existing:
-            if arfcn in rssis:
-                # do update
-                self.gsmwsdb.execute("UPDATE AVAIL_ARFCN SET TIMESTAMP=?, RSSI=? WHERE ARFCN=?", (timestamp, rssis[arfcn], arfcn))
-        for arfcn in [_ for _ in rssis if _ not in existing]:
-            # do insert
-            self.gsmwsdb.execute("INSERT INTO AVAIL_ARFCN VALUES(?,?,?)", (timestamp, arfcn, rssis[arfcn]))
-        self.gsmwsdb.commit()
+            for arfcn in existing:
+                if arfcn in rssis:
+                    # do update
+                    self.gsmwsdb.execute("UPDATE AVAIL_ARFCN SET TIMESTAMP=?, RSSI=? WHERE ARFCN=?", (timestamp, rssis[arfcn], arfcn))
+            for arfcn in [_ for _ in rssis if _ not in existing]:
+                # do insert
+                self.gsmwsdb.execute("INSERT INTO AVAIL_ARFCN VALUES(?,?,?)", (timestamp, arfcn, rssis[arfcn]))
+            self.gsmwsdb.commit()
 
-        # now, expire!
-        now = datetime.datetime.now()
-        res = self.gsmwsdb.execute("SELECT TIMESTAMP, ARFCN FROM AVAIL_ARFCN")
-        for items in res.fetchall():
-            ts = datetime.datetime.strptime(items[0], "%Y-%m-%d %H:%M:%S.%f")
-            arfcn = items[1]
-            if (now - ts).seconds > 4*self.NEIGHBOR_CYCLE_TIME:
-                self.gsmwsdb.execute("DELETE FROM AVAIL_ARFCN WHERE ARFCN=?", (arfcn,))
-                logging.debug("Expiring ARFCN %s (%s)" % (arfcn, ts))
-        self.gsmwsdb.commit()
+            # now, expire!
+            now = datetime.datetime.now()
+            res = self.gsmwsdb.execute("SELECT TIMESTAMP, ARFCN FROM AVAIL_ARFCN")
+            for items in res.fetchall():
+                ts = datetime.datetime.strptime(items[0], "%Y-%m-%d %H:%M:%S.%f")
+                arfcn = items[1]
+                if (now - ts).seconds > 4*self.NEIGHBOR_CYCLE_TIME:
+                    self.gsmwsdb.execute("DELETE FROM AVAIL_ARFCN WHERE ARFCN=?", (arfcn,))
+                    logging.debug("Expiring ARFCN %s (%s)" % (arfcn, ts))
+            self.gsmwsdb.commit()
 
     def safe_arfcns(self):
         """ Get the ARFCNs which probably have no other users """
-        res = self.gsmwsdb.execute("SELECT ARFCN, RSSI FROM AVAIL_ARFCN")
+        with self.gsmwsdb_lock:
+            res = self.gsmwsdb.execute("SELECT ARFCN, RSSI FROM AVAIL_ARFCN")
         candidates = []
         for i in res:
             arfcn, rssi = i
@@ -115,7 +120,8 @@ class Controller(object):
 
     def pick_new_neighbors(self):
         """ Pick a set of ARFCNs we haven't scanned before """
-        existing = [arfcn for res in self.gsmwsdb.execute("SELECT ARFCN FROM AVAIL_ARFCN").fetchall() for arfcn in res]
+        with self.gsmwsdb_lock:
+            existing = [arfcn for res in self.gsmwsdb.execute("SELECT ARFCN FROM AVAIL_ARFCN").fetchall() for arfcn in res]
         return random.sample([_ for _ in range(1,124) if _ not in existing], 5)
 
     def main(self, stream=None, cmd=None):
@@ -125,7 +131,7 @@ class Controller(object):
             if cmd==None:
                 cmd = "tshark -V -n -i any udp dst port 4729"
             stream = gsm.command_stream(cmd)
-        self.gsmd = decoder.GSMDecoder(stream, self.gsmwsdb_loc, loglvl=self.loglvl)
+        self.gsmd = decoder.GSMDecoder(stream, self.gsmwsdb_lock, self.gsmwsdb_location, loglvl=self.loglvl)
         self.gsmd.start()
         last_cycle_time = datetime.datetime.now()
         ignored_since = datetime.datetime.now()

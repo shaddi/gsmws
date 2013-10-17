@@ -7,7 +7,7 @@ import Queue
 import sqlite3
 
 class GSMDecoder(threading.Thread):
-    def __init__(self, stream, gsmwsdb_loc="/tmp/gsmws.db", maxlen=100, loglvl=logging.INFO):
+    def __init__(self, stream, db_lock, gsmwsdb_location="/tmp/gsmws.db", maxlen=100, loglvl=logging.INFO):
         threading.Thread.__init__(self)
         self.stream = stream
         self.current_message = ""
@@ -17,7 +17,8 @@ class GSMDecoder(threading.Thread):
         self.ignore_reports = False # ignore measurement reports
         self.msgs_seen = 0
 
-        self.gsmwsdb_loc = gsmwsdb_loc
+        self.gsmwsdb_lock = db_lock
+        self.gsmwsdb_location = gsmwsdb_location
         self.gsmwsdb = None # this gets created in run()
 
         self.rssi_queue = Queue.Queue()
@@ -38,23 +39,25 @@ class GSMDecoder(threading.Thread):
         just the mean value from before).
         """
         # populate the above from stable
-        max_strengths = self.gsmwsdb.execute("SELECT ARFCN, RSSI FROM MAX_STRENGTHS").fetchall()
-        for item in max_strengths:
-            self.max_strengths[item[0]] = item[1]
+        with self.gsmwsdb_lock:
+            max_strengths = self.gsmwsdb.execute("SELECT ARFCN, RSSI FROM MAX_STRENGTHS").fetchall()
+            for item in max_strengths:
+                self.max_strengths[item[0]] = item[1]
 
-        recent = self.gsmwsdb.execute("SELECT ARFCN, RSSI, COUNT FROM AVG_STRENGTHS").fetchall()
-        for item in recent:
-            self.recent_strengths[item[0]] = collections.deque([item[1] for _ in range(0,item[2])],maxlen=self.strengths_maxlen)
+            recent = self.gsmwsdb.execute("SELECT ARFCN, RSSI, COUNT FROM AVG_STRENGTHS").fetchall()
+            for item in recent:
+                self.recent_strengths[item[0]] = collections.deque([item[1] for _ in range(0,item[2])],maxlen=self.strengths_maxlen)
 
     def __write_rssi(self):
         if not self.rssi_queue.empty():
-            while not self.rssi_queue.empty():
-                try:
-                    query = self.rssi_queue.get()
-                    self.gsmwsdb.execute(query[0], query[1])
-                except Queue.Empty:
-                    break
-            self.gsmwsdb.commit()
+            with self.gsmwsdb_lock:
+                while not self.rssi_queue.empty():
+                    try:
+                        query = self.rssi_queue.get()
+                        self.gsmwsdb.execute(query[0], query[1])
+                    except Queue.Empty:
+                        break
+                self.gsmwsdb.commit()
 
 
     def rssi(self):
@@ -79,7 +82,7 @@ class GSMDecoder(threading.Thread):
 
 
     def run(self):
-        self.gsmwsdb = sqlite3.connect(self.gsmwsdb_loc)
+        self.gsmwsdb = sqlite3.connect(self.gsmwsdb_location)
         self._populate_strengths()
 
         last_rssi_update = datetime.datetime.now()
@@ -93,17 +96,18 @@ class GSMDecoder(threading.Thread):
                 self.current_message = line
 
     def update_max_strength(self, arfcn, value):
-        now = datetime.datetime.now()
+        with self.gsmwsdb_lock:
+            now = datetime.datetime.now()
 
-        # FIXME potential leak here: we could record max values twice if we're
-        # not in sync w/ db, but that should only happen rarely
-        if arfcn not in self.max_strengths:
-            self.max_strengths[arfcn] = value
-            self.gsmwsdb.execute("INSERT INTO MAX_STRENGTHS VALUES(?,?,?)", (now, arfcn, value))
-        elif value > self.max_strengths[arfcn]:
-            self.max_strengths[arfcn] = value
-            self.gsmwsdb.execute("UPDATE MAX_STRENGTHS SET TIMESTAMP=?, RSSI=? WHERE ARFCN=?", (now, value, arfcn))
-        self.gsmwsdb.commit()
+            # FIXME potential leak here: we could record max values twice if we're
+            # not in sync w/ db, but that should only happen rarely
+            if arfcn not in self.max_strengths:
+                self.max_strengths[arfcn] = value
+                self.gsmwsdb.execute("INSERT INTO MAX_STRENGTHS VALUES(?,?,?)", (now, arfcn, value))
+            elif value > self.max_strengths[arfcn]:
+                self.max_strengths[arfcn] = value
+                self.gsmwsdb.execute("UPDATE MAX_STRENGTHS SET TIMESTAMP=?, RSSI=? WHERE ARFCN=?", (now, value, arfcn))
+            self.gsmwsdb.commit()
 
 
 
