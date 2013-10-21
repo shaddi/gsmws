@@ -95,27 +95,53 @@ class GSMDecoder(threading.Thread):
                 self.process(self.current_message)
                 self.current_message = line
 
-    def update_max_strength(self, arfcn, value):
-        with self.gsmwsdb_lock:
-            now = datetime.datetime.now()
+    def update_strength(self, strengths):
+        self.update_max_strength(strengths)
+        self.update_recent_strengths(strengths)
 
-            # FIXME potential leak here: we could record max values twice if we're
-            # not in sync w/ db, but that should only happen rarely
-            if arfcn not in self.max_strengths:
-                self.max_strengths[arfcn] = value
-                self.gsmwsdb.execute("INSERT INTO MAX_STRENGTHS VALUES(?,?,?)", (now, arfcn, value))
-            elif value > self.max_strengths[arfcn]:
-                self.max_strengths[arfcn] = value
-                self.gsmwsdb.execute("UPDATE MAX_STRENGTHS SET TIMESTAMP=?, RSSI=? WHERE ARFCN=?", (now, value, arfcn))
+    def update_max_strength(self, strengths):
+        with self.gsmwsdb_lock:
+            for arfcn in strengths:
+                value = strengths[arfcn]
+                now = datetime.datetime.now()
+
+                # FIXME potential leak here: we could record max values twice if we're
+                # not in sync w/ db, but that should only happen rarely
+                if arfcn not in self.max_strengths:
+                    self.max_strengths[arfcn] = value
+                    self.gsmwsdb.execute("INSERT INTO MAX_STRENGTHS VALUES(?,?,?)", (now, arfcn, value))
+                elif value > self.max_strengths[arfcn]:
+                    self.max_strengths[arfcn] = value
+                    self.gsmwsdb.execute("UPDATE MAX_STRENGTHS SET TIMESTAMP=?, RSSI=? WHERE ARFCN=?", (now, value, arfcn))
+
+            to_delete = []
+            for arfcn in self.max_strengths:
+                if arfcn not in strengths:
+                    to_delete.append(arfcn)
+                    self.gsmwsdb.execute("DELETE FROM MAX_STRENGTHS WHERE ARFCN=?", (arfcn,))
+            for arfcn in to_delete:
+                del self.max_strengths[arfcn]
             self.gsmwsdb.commit()
 
 
 
-    def update_recent_strengths(self, arfcn, value):
-        if arfcn in self.recent_strengths:
-            self.recent_strengths[arfcn].append(value)
-        else:
-            self.recent_strengths[arfcn] = collections.deque([value],maxlen=self.strengths_maxlen)
+    def update_recent_strengths(self, strengths):
+        for arfcn in strengths:
+            value = strengths[arfcn]
+            if arfcn in self.recent_strengths:
+                self.recent_strengths[arfcn].append(value)
+            else:
+                self.recent_strengths[arfcn] = collections.deque([value],maxlen=self.strengths_maxlen)
+
+        with self.gsmwsdb_lock:
+            to_delete = []
+            for arfcn in self.recent_strengths:
+                if arfcn not in strengths:
+                    to_delete.append(arfcn)
+                    self.gsmwsdb.execute("DELETE FROM AVG_STRENGTHS WHERE ARFCN=?", (arfcn,))
+
+            for arfcn in to_delete:
+                del self.recent_strengths[arfcn]
 
         # force a write whenever we update strength
         self.rssi()
@@ -130,9 +156,7 @@ class GSMDecoder(threading.Thread):
             report = gsm.MeasurementReport(self.last_arfcns, self.current_arfcn, message)
             if report.valid:
                 logging.info("MeasurementReport: " + str(report))
-                for arfcn in report.current_strengths:
-                    self.update_max_strength(arfcn,report.current_strengths[arfcn])
-                    self.update_recent_strengths(arfcn, report.current_strengths[arfcn])
+                self.update_strength(report.current_strengths)
 
                 for arfcn in report.current_bsics:
                     if report.current_bsics[arfcn] != None:
