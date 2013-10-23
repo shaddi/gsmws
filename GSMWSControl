@@ -6,7 +6,7 @@ if __name__ == "__main__":
     import sys
     from os.path import expanduser
 
-    from gsmws import controller
+    from gsmws import controller, bts
 
     parser = argparse.ArgumentParser(description="GSMWS Controller.")
     parser.add_argument('--openbtsdb', type=str, action='store', default='/etc/OpenBTS/OpenBTS.db', help="OpenBTS.db location")
@@ -17,6 +17,7 @@ if __name__ == "__main__":
     parser.add_argument('--gsmwsdb', type=str, action='store', default=expanduser("~") + "/gsmws.db", help="Where to store the gsmws.db file")
     parser.add_argument('--cmd', type=str, action='store', default=None, help="Command string to run.")
     parser.add_argument('--stdin', action='store_true', help="Read from STDIN")
+    parser.add_argument('--oldskool', action='store_true', help="Use the old-style BTS (really just for Desa)")
     parser.add_argument('--debug', action='store_true', help="Enable debug logging")
     args = parser.parse_args()
 
@@ -34,12 +35,17 @@ if __name__ == "__main__":
     SLEEP_TIME = args.sleep # seconds between rssi checks
     GSMWS_DB = args.gsmwsdb
 
+    if args.oldskool:
+        BTS_CLASS = bts.OldBTS
+    else:
+        BTS_CLASS = bts.BTS
+
     if args.debug:
         loglvl = logging.DEBUG
     else:
         loglvl = logging.INFO
 
-    c = controller.Controller(OPENBTS_DB_LOC, OPENBTS_PROCESS_NAME, TRANSCEIVER_PROCESS_NAME, NEIGHBOR_CYCLE_TIME, SLEEP_TIME, GSMWS_DB, loglvl=loglvl)
+    c = controller.Controller(OPENBTS_DB_LOC, OPENBTS_PROCESS_NAME, TRANSCEIVER_PROCESS_NAME, NEIGHBOR_CYCLE_TIME, SLEEP_TIME, GSMWS_DB, loglvl=loglvl, bts_class=BTS_CLASS)
     if args.stdin:
         c.main(stream=sys.stdin)
     else:

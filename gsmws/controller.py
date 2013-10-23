@@ -3,93 +3,11 @@ import datetime
 import random
 import sqlite3
 import logging
-import sys
 import threading
-from os.path import expanduser
-
-import envoy
 
 import decoder
 import gsm
-
-class BTS(object):
-    def __init__(self, db_loc, openbts_proc, trans_proc, gsm_decoder, loglvl=logging.DEBUG):
-        self.process_name = openbts_proc
-        self.transceiver_process = trans_proc
-
-        self.cmd_socket = None # TODO
-        self.neighbor_table = None # TODO
-        self.decoder = gsmd
-        self.loglvl = loglvl
-
-        self.decoder.start() # start the decoder for this BTS
-
-    @property
-    def current_arfcn(self):
-        return self.decoder.current_arfcn
-
-    def config(self, config_str):
-        """ Run a config command as though we're using the OpenBTSCLI """
-
-        # THIS IS THE OFFICIAL WAY TO DO THIS
-        # IN THE NAME OF ALL THAT IS HOLY
-        r = envoy.run("echo -n '%s' | sudo /OpenBTS/OpenBTSDo" % config_str)
-        return r.std_out
-
-
-    def restart(self):
-        """ TODO OpenBTS should really be a service, and we should really just say
-        "sudo service restart openbts". But we can't, because OpenBTS is a disaster.
-        EVEN WORSE, we assume that we're in OpenBTS's runloop which will restart us
-        automatically. What a mess... """
-        logging.warning("Restarting %s..." % self.process_name)
-        envoy.run("killall %s %s" % (self.process_name, self.transceiver_process))
-        time.sleep(10)
-        if len(envoy.run("ps aux | grep './%s'" % self.process_name))==0:
-            pass # TODO: run OpenBTS
-
-    def change_arfcn(self, new_arfcn, immediate=False):
-        """ Change OpenBTS to use a new ARFCN. By default, just update the DB, but
-        don't actually restart OpenBTS. If immediate=True, restart OpenBTS too. """
-        self.config("config GSM.Radio.C0 %s" % new_arfcn)
-        try:
-            assert int(new_arfcn) <= 124
-            assert int(new_arfcn) > 0
-        except:
-            logging.error("Invalid ARFCN: %s" % new_arfcn)
-            return
-        logging.warning("Updated next ARFCN to %s" % new_arfcn)
-        if immediate:
-            self.restart()
-
-    def set_neighbors(self, arfcns):
-        """
-        The new OpenBTS handover feature makes setting the neighbor list a bit
-        more complicated. You're supposed to just set the IP addresses of the
-        neighbor cells, and then OpenBTS populates a neighbor table DB
-        (/var/run/NeighborTable.db by default, set in Peering.NeighborTable.Path)
-        with ARFCN, BSIC, etc by directly querying the other BTS. Manually
-        populating this DB requires two steps. First, we have to add IP addresses
-        to GSM.Neighbors; if we don't, anything we add to the neighbor table will
-        be deleted. Once we've added an IP, we can manually update the
-        NeighborTable with our list of neighbor ARFCNs.
-
-        Our algorithm here is to use unrouteable 127.0.10.0/24 addresses for our
-        neighbors; we simply incrementally add neighbor IPs based on how many we
-        have. Once we've done that, we can directly manipulate the neighbor table
-        using those IP addresses.
-        """
-
-       fake_ips  = ["127.0.10.%d" % (num+1) for num in range(0,len(arfcns))]
-       neighbors = dict(zip(arfcns, fake_ips))
-       fake_ip_str = " ".join([str(_) for _  in fake_ips])
-
-
-        # set IPs in openbts
-        self.config("config GSM.Neighbors %s" % fake_ip_str)
-
-        # now, update the neighbor table for each
-        # TODO
+import bts
 
 """
 The controller has three tasks:
@@ -98,14 +16,20 @@ The controller has three tasks:
     2) If we detect a channel in use "near" us, we should stop OpenBTS and pick a new channel (TODO)
 """
 class Controller(object):
-    def __init__(self, bts, nct, sleep, gsmwsdb, loglvl=logging.DEBUG):
-        self.bts = bts
+    def __init__(self, db_loc, openbts_proc, trans_proc, nct, sleep, gsmwsdb, loglvl=logging.DEBUG, bts_class=bts.BTS):
+        self.OPENBTS_PROCESS_NAME=openbts_proc
+        self.TRANSCEIVER_PROCESS_NAME=trans_proc
         self.NEIGHBOR_CYCLE_TIME = nct # seconds to wait before switching up the neighbor list
         self.SLEEP_TIME = sleep # seconds between rssi checks
+
+        self.openbtsdb_loc = db_loc
 
         self.gsmwsdb_location = gsmwsdb
         self.gsmwsdb_lock = threading.Lock()
         self.gsmwsdb = sqlite3.connect(gsmwsdb)
+
+        self.bts = None
+        self.bts_class = bts_class
 
         self.loglvl = loglvl
         logging.basicConfig(format='%(asctime)s %(module)s %(funcName)s %(lineno)d %(levelname)s %(message)s', filename='/var/log/gsmws.log',level=loglvl)
@@ -116,42 +40,6 @@ class Controller(object):
             self.gsmwsdb.execute("CREATE TABLE IF NOT EXISTS AVAIL_ARFCN (TIMESTAMP TEXT NOT NULL, ARFCN INTEGER, RSSI REAL);")
             self.gsmwsdb.execute("CREATE TABLE IF NOT EXISTS MAX_STRENGTHS (TIMESTAMP TEXT NOT NULL, ARFCN INTEGER, RSSI REAL);")
             self.gsmwsdb.execute("CREATE TABLE IF NOT EXISTS AVG_STRENGTHS (TIMESTAMP TEXT NOT NULL, ARFCN INTEGER, RSSI REAL, COUNT INTEGER);")
-
-    def restart_openbts(self):
-        """ TODO OpenBTS should really be a service, and we should really just say
-        "sudo service restart openbts". But we can't, because OpenBTS is a disaster.
-        EVEN WORSE, we assume that we're in OpenBTS's runloop which will restart us
-        automatically. What a mess... """
-        logging.warning("Restarting OpenBTS...")
-        envoy.run("killall %s %s" % (OPENBTS_PROCESS_NAME, TRANSCEIVER_PROCESS_NAME))
-        time.sleep(10)
-        if len(envoy.run("ps aux | grep './OpenBTS'"))==0:
-            pass # TODO: run OpenBTS
-
-    def set_new_neighbor_list(self, neighbors):
-        neighbor_string = " ".join([str(_) for _  in neighbors])
-
-        # THIS IS THE OFFICIAL WAY TO DO THIS
-        # IN THE NAME OF ALL THAT IS HOLY
-        envoy.run("echo -n 'config GSM.CellSelection.Neighbors %s' | sudo /OpenBTS/OpenBTSDo" % neighbor_string)
-
-        # ignore measurement requests for a while
-        logging.info("New neighbor list: %s" % neighbor_string)
-
-    def change_arfcn(self, new_arfcn, immediate=False):
-        """ Change OpenBTS to use a new ARFCN. By default, just update the DB, but
-        don't actually restart OpenBTS. If immediate=True, restart OpenBTS too. """
-        self.openbtsdb.execute("UPDATE CONFIG SET VALUESTRING=? WHERE KEYSTRING='GSM.Radio.C0'", (new_arfcn,))
-        self.openbtsdb.commit()
-        try:
-            assert int(new_arfcn) <= 124
-            assert int(new_arfcn) > 0
-        except:
-            logging.error("Invalid ARFCN: %s" % new_arfcn)
-            return
-        logging.warning("Updated next ARFCN to %s" % new_arfcn)
-        if immediate:
-            self.restart_openbts()
 
     def update_rssi_db(self, rssis):
         # rssis: A dict of ARFCN->RSSI that's up to date as of now (it already captures our historical knowledge)
@@ -208,15 +96,18 @@ class Controller(object):
             if cmd==None:
                 cmd = "tshark -V -n -i any udp dst port 4729"
             stream = gsm.command_stream(cmd)
-        self.gsmd = decoder.GSMDecoder(stream, self.gsmwsdb_lock, self.gsmwsdb_location, loglvl=self.loglvl)
-        self.gsmd.start()
+
+        gsmd = decoder.GSMDecoder(stream, self.gsmwsdb_lock, self.gsmwsdb_location, loglvl=self.loglvl)
+        self.bts = self.bts_class(self.openbtsdb_loc, self.OPENBTS_PROCESS_NAME, self.TRANSCEIVER_PROCESS_NAME, self.loglvl)
+        self.bts.init_decoder(gsmd)
         last_cycle_time = datetime.datetime.now()
         ignored_since = datetime.datetime.now()
         while True:
             try:
                 now = datetime.datetime.now()
-                if self.gsmd.ignore_reports and (now - ignored_since).seconds > 120:
-                    self.gsmd.ignore_reports = False
+
+                if self.bts.decoder.ignore_reports and (now - ignored_since).seconds > 120:
+                    self.bts.decoder.ignore_reports = False
 
                 td = (now - last_cycle_time)
                 if td.seconds > self.NEIGHBOR_CYCLE_TIME:
@@ -226,14 +117,14 @@ class Controller(object):
                     except IndexError:
                         logging.error("Unable to pick new safe ARFCN!")
                         pass # just don't pick for now
-                    self.set_new_neighbor_list(self.pick_new_neighbors())
-                    self.gsmd.ignore_reports = True
+                    self.bts.set_neighbors(self.pick_new_neighbors())
+                    self.bts.decoder.ignore_reports = True
                     ignored_since = now
                     last_cycle_time = now
 
-                logging.info("Current ARFCN: %s" % self.gsmd.current_arfcn)
+                logging.info("Current ARFCN: %s" % self.bts.current_arfcn)
 
-                rssis = self.gsmd.rssi()
+                rssis = self.bts.decoder.rssi()
 
                 # TODO this might actually be the right behavior -- why does
                 # the fact we used an arfcn before change whether we need to
