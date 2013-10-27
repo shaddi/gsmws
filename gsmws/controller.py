@@ -113,7 +113,7 @@ class Controller(object):
                 if td.seconds > self.NEIGHBOR_CYCLE_TIME:
                     try:
                         new_arfcn = self.pick_new_safe_arfcn()
-                        self.change_arfcn(new_arfcn)
+                        bts.change_arfcn(new_arfcn)
                     except IndexError:
                         logging.error("Unable to pick new safe ARFCN!")
                         pass # just don't pick for now
@@ -133,6 +133,128 @@ class Controller(object):
                 #del(rssis[self.gsmd.current_arfcn]) # ignore readings for our own C0 (else, we never consider our own used arfcn safe until we scan it 100 times again!)
                 self.update_rssi_db(rssis)
                 logging.info("Safe ARFCNs: %s" % str(self.safe_arfcns()))
+                time.sleep(self.SLEEP_TIME)
+            except KeyboardInterrupt:
+                break
+
+"""
+This controller handles two BTS units and detects interference on a channel
+either is using.
+"""
+class DualController(Controller):
+    def __init__(self, bts1_conf, bts2_conf, nct, sleep, max_delta, gsmwsdb, loglvl=logging.DEBUG):
+        """
+        A BTS config dictionary has the following items:
+        - db_loc: The OpenBTS.db location for this BTS
+        - openbts_proc: The name of the OpenBTS process, so we can kill it if necessary
+        - trans_proc: The name of the transceiver process, so we can kill it if necessary
+        - bts_class: The type of BTS this is (bts.BTS or bts.OldBTS, for example)
+        - stream: The stream to read from (either sys.STDIN or a gsm.command_stream)
+        - start_cmd: A shell command that can properly restart this BTS
+        """
+        self.BTS_CONF = [bts1_conf, bts2_conf]
+
+        self.NEIGHBOR_CYCLE_TIME = nct # seconds to wait before switching up the neighbor list
+        self.SLEEP_TIME = sleep # seconds between rssi checks
+        self.MAX_DELTA = max_delta # max difference in rssi measurements between ARFCNs
+
+        self.gsmwsdb_location = gsmwsdb
+        self.gsmwsdb_lock = threading.Lock()
+        self.gsmwsdb = sqlite3.connect(gsmwsdb)
+
+        self.bts_units = []
+        self.bts_class = bts_class
+
+        self.loglvl = loglvl
+        logging.basicConfig(format='%(asctime)s %(module)s %(funcName)s %(lineno)d %(levelname)s %(message)s', filename='/var/log/gsmws.log',level=loglvl)
+        logging.warning("New DualController started.")
+
+    def setup_bts(self):
+        cycle_offset = self.NEIGHBOR_CYCLE_TIME /. len(self.BTS_CONF)
+        cycle_count = 0
+
+        now = datetime.datetime.now()
+        for conf in self.BTS_CONF:
+            gsmd = decoder.GSMDecoder(conf['stream'], self.gsmwsdb_lock, self.gsmwsdb_location, loglvl=self.loglvl)
+            bts = conf['bts_class'](conf['db_loc'], conf['openbts_proc'], conf['trans_proc'], self.loglvl)
+            bts.init_decoder(gsmd)
+
+            # set up cycle time/ignored since
+            bts.ignored_since = now
+            bts.last_cycle_time = now - cycle_count * datetime.timedelta(seconds = cycle_offset) # keep them out of sync
+            bts.id_num = cycle_count
+
+            self.bts_units.append(bts)
+            cycle_count += 1
+
+    def pick_new_neighbors(self, bts_id_num):
+        other_arfcns = [b.current_arfcn for b in self.bts_units if b.id_num != bts_id_num]
+        with self.gsmwsdb_lock:
+            existing = [arfcn for res in self.gsmwsdb.execute("SELECT ARFCN FROM AVAIL_ARFCN").fetchall() for arfcn in res]
+        random_arfcns = random.sample([_ for _ in range(1,124) if (_ not in existing and _ not in other_arfcns)], 6 - len(other_arfcns))
+        return other_arfcns + random_arfcns
+
+    def __read_report(self, strength_report, reference, targets):
+        """
+        For the given strength report, determine which target ARFCNs differ
+        from the strength of the reference ARFCN by more than (postiive)
+        MAX_DELTA.
+        """
+        res = []
+        ref_strength = strength_report[reference]
+        for t in targets:
+            if strenth_report[t] > ref_strength + self.MAX_DELTA:
+                res.append(t)
+        return res
+
+    def main(self)
+        self.initdb() # set up the gsmws db
+        self.setup_bts() # set up the BTS units
+
+        while True:
+            try:
+                now = datetime.datetime.now()
+
+                # disable ignore reports if expired
+                for bts in self.bts_units:
+                    if bts.decoder.ignore_reports and (now - bts.ignored_since).seconds > 120:
+                        bts.decoder.ignore_reports = False
+
+                for bts in self.bts_units:
+                    td = (now - bts.last_cycle_time)
+                    if td.seconds > self.NEIGHBOR_CYCLE_TIME:
+                        try:
+                            new_arfcn = self.pick_new_safe_arfcn()
+                            bts.change_arfcn(new_arfcn)
+                        except IndexError:
+                            logging.error("Unable to pick new safe ARFCN!")
+                            pass # just don't pick for now
+                        self.bts.set_neighbors(self.pick_new_neighbors(bts.id_num))
+                        self.bts.decoder.ignore_reports = True
+                        bts.ignored_since = now
+                        bts.last_cycle_time = now
+
+                    logging.info("Current ARFCN (BTS %d): %s" % (bts.id_num, self.bts.current_arfcn))
+
+                    rssis = self.bts.decoder.rssi()
+                    self.update_rssi_db(rssis)
+                    logging.info("Safe ARFCNs (BTS %d): %s" % (bts.id_num, str(self.safe_arfcns()))
+
+                # compare the BTS readings
+                current_arfcns = [b.current_arfcn for b in self.bts_units]
+                to_restart = set()
+                for bts in self.bts_units:
+                    for report in bts.reports():
+                        r = self.__read_report(report, bts.current_arfcn, current_arfcns)
+                        if r:
+                            to_restart |= set(r)
+
+                # kill what needs to be killed
+                for bts in self.bts_units:
+                    if bts.current_arfcn in to_restart:
+                        new_arfcn = self.pick_new_safe_arfcn()
+                        bts.change_arfcn(new_arfcn, True)
+
                 time.sleep(self.SLEEP_TIME)
             except KeyboardInterrupt:
                 break

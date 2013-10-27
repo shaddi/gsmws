@@ -33,6 +33,11 @@ class BTS(object):
     def current_arfcn(self):
         return self.decoder.current_arfcn
 
+    @property
+    def reports(self):
+        return self.decoder.reports.getall()
+
+
     def config(self, config_str):
         """ Run a config command as though we're using the OpenBTSCLI """
 
@@ -50,7 +55,7 @@ class BTS(object):
         automatically. What a mess... """
         logging.warning("Restarting %s..." % self.process_name)
         envoy.run("killall %s %s" % (self.process_name, self.transceiver_process))
-        time.sleep(10)
+        time.sleep(2)
         if len(envoy.run("ps aux | grep './%s'" % self.process_name))==0:
             pass # TODO: run OpenBTS
 

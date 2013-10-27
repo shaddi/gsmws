@@ -6,6 +6,26 @@ import datetime
 import Queue
 import sqlite3
 
+class MeasurementReportList(object):
+    def __init__(self, maxlen=10000):
+        self.lock = threading.Lock()
+        self.maxlen = maxlen
+        self.reports = collections.deque(maxlen=maxlen)
+
+    def put(self, report):
+        with self.lock:
+            self.reports.append(report)
+
+    def get(self):
+        with self.lock:
+            self.reports.popleft()
+
+    def getall(self):
+        with self.lock:
+            reports, self.reports = self.reports, collections.deque(self.maxlen)
+        return list(reports)
+
+
 class GSMDecoder(threading.Thread):
     def __init__(self, stream, db_lock, gsmwsdb_location="/tmp/gsmws.db", maxlen=100, loglvl=logging.INFO):
         threading.Thread.__init__(self)
@@ -22,6 +42,8 @@ class GSMDecoder(threading.Thread):
         self.gsmwsdb = None # this gets created in run()
 
         self.rssi_queue = Queue.Queue()
+
+        self.reports = MeasurementReportList()
 
         self.strengths_maxlen = maxlen
         self.max_strengths = {} # max strength ever seen for a given arfcn
@@ -130,6 +152,7 @@ class GSMDecoder(threading.Thread):
             report = gsm.MeasurementReport(self.last_arfcns, self.current_arfcn, message)
             if report.valid:
                 logging.info("MeasurementReport: " + str(report))
+                self.reports.put(report.current_strengths)
                 for arfcn in report.current_strengths:
                     self.update_max_strength(arfcn,report.current_strengths[arfcn])
                     self.update_recent_strengths(arfcn, report.current_strengths[arfcn])
