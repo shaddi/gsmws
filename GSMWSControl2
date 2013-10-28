@@ -6,7 +6,7 @@ if __name__ == "__main__":
     import sys
     from os.path import expanduser
 
-    from gsmws import controller, bts
+    from gsmws import controller, bts, gsm
 
     parser = argparse.ArgumentParser(description="GSMWS Controller for two BTS units.")
     parser.add_argument('--openbtsdb1', type=str, action='store', default='/etc/OpenBTS/OpenBTS.db', help="OpenBTS.db location")
@@ -46,7 +46,7 @@ if __name__ == "__main__":
     bts1_conf = {'db_loc': args.openbtsdb1,
                  'openbts_proc': args.openbts1,
                  'trans_proc': args.transceiver1,
-                 'bts_class': BTS_CLASS
+                 'bts_class': BTS_CLASS,
                  'stream': stream1,
                  'start_cmd': None # unused right now... TODO
                  }
@@ -54,7 +54,7 @@ if __name__ == "__main__":
     bts2_conf = {'db_loc': args.openbtsdb2,
                  'openbts_proc': args.openbts2,
                  'trans_proc': args.transceiver2,
-                 'bts_class': BTS_CLASS
+                 'bts_class': BTS_CLASS,
                  'stream': stream2,
                  'start_cmd': None # unused right now... TODO
                  }

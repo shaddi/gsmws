@@ -163,14 +163,13 @@ class DualController(Controller):
         self.gsmwsdb = sqlite3.connect(gsmwsdb)
 
         self.bts_units = []
-        self.bts_class = bts_class
 
         self.loglvl = loglvl
         logging.basicConfig(format='%(asctime)s %(module)s %(funcName)s %(lineno)d %(levelname)s %(message)s', filename='/var/log/gsmws.log',level=loglvl)
         logging.warning("New DualController started.")
 
     def setup_bts(self):
-        cycle_offset = self.NEIGHBOR_CYCLE_TIME /. len(self.BTS_CONF)
+        cycle_offset = self.NEIGHBOR_CYCLE_TIME / float(len(self.BTS_CONF))
         cycle_count = 0
 
         now = datetime.datetime.now()
@@ -207,7 +206,7 @@ class DualController(Controller):
                 res.append(t)
         return res
 
-    def main(self)
+    def main(self):
         self.initdb() # set up the gsmws db
         self.setup_bts() # set up the BTS units
 
@@ -238,7 +237,7 @@ class DualController(Controller):
 
                     rssis = self.bts.decoder.rssi()
                     self.update_rssi_db(rssis)
-                    logging.info("Safe ARFCNs (BTS %d): %s" % (bts.id_num, str(self.safe_arfcns()))
+                    logging.info("Safe ARFCNs (BTS %d): %s" % (bts.id_num, str(self.safe_arfcns())))
 
                 # compare the BTS readings
                 current_arfcns = [b.current_arfcn for b in self.bts_units]
