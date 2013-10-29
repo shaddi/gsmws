@@ -180,7 +180,7 @@ class DualController(Controller):
 
             # set up cycle time/ignored since
             bts.ignored_since = now
-            bts.last_cycle_time = now - cycle_count * datetime.timedelta(seconds = cycle_offset) # keep them out of sync
+            bts.last_cycle_time = now - datetime.timedelta(seconds = (cycle_count*cycle_offset + self.NEIGHBOR_CYCLE_TIME) # keep them out of sync, but make sure they start
             bts.id_num = cycle_count
 
             self.bts_units.append(bts)
