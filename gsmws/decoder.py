@@ -22,7 +22,7 @@ class MeasurementReportList(object):
 
     def getall(self):
         with self.lock:
-            reports, self.reports = self.reports, collections.deque(self.maxlen)
+            reports, self.reports = self.reports, collections.deque(maxlen=self.maxlen)
         return list(reports)
 
 

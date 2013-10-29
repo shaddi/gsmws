@@ -233,9 +233,9 @@ class DualController(Controller):
                         bts.ignored_since = now
                         bts.last_cycle_time = now
 
-                    logging.info("Current ARFCN (BTS %d): %s" % (bts.id_num, self.bts.current_arfcn))
+                    logging.info("Current ARFCN (BTS %d): %s" % (bts.id_num, bts.current_arfcn))
 
-                    rssis = self.bts.decoder.rssi()
+                    rssis = bts.decoder.rssi()
                     self.update_rssi_db(rssis)
                     logging.info("Safe ARFCNs (BTS %d): %s" % (bts.id_num, str(self.safe_arfcns())))
 
@@ -243,7 +243,7 @@ class DualController(Controller):
                 current_arfcns = [b.current_arfcn for b in self.bts_units]
                 to_restart = set()
                 for bts in self.bts_units:
-                    for report in bts.reports():
+                    for report in bts.reports:
                         r = self.__read_report(report, bts.current_arfcn, current_arfcns)
                         if r:
                             to_restart |= set(r)
