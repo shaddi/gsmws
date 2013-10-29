@@ -228,8 +228,8 @@ class DualController(Controller):
                         except IndexError:
                             logging.error("Unable to pick new safe ARFCN!")
                             pass # just don't pick for now
-                        self.bts.set_neighbors(self.pick_new_neighbors(bts.id_num))
-                        self.bts.decoder.ignore_reports = True
+                        bts.set_neighbors(self.pick_new_neighbors(bts.id_num))
+                        bts.decoder.ignore_reports = True
                         bts.ignored_since = now
                         bts.last_cycle_time = now
 
