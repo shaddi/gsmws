@@ -104,7 +104,7 @@ class BTS(object):
         # Holdoff: GSM.Handover.FailureHoldoff, time in seconds between holdoff attempts. Set to a gazillion here.
         # C0: The ARFCN we want to scan
         # BSIC: The BSIC. Can be set to whatever.
-        updated = int(datetime.datetime.now().stftime("%s")) - 10 # ten seconds ago, unix time
+        updated = int(datetime.datetime.now().strftime("%s")) - 10 # ten seconds ago, unix time
         holdoff = 2**20 # 12 days... YOLO! (and only check once, heh heh)
         bsic = 1 # TODO does this matter?
         for i in range(0, len(arfcns)):
