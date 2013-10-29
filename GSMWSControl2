@@ -12,7 +12,7 @@ if __name__ == "__main__":
     parser.add_argument('--openbtsdb1', type=str, action='store', default='/etc/OpenBTS/OpenBTS.db', help="OpenBTS.db location")
     parser.add_argument('--openbts1', type=str, action='store', default='OpenBTS', help="OpenBTS process name")
     parser.add_argument('--transceiver1', type=str, action='store', default='transceiver', help="transceiver process name")
-    parser.add_argument('--cmd1', type=str, action='store', default="tshark -V -n -i any udp dst port 4729", help="command stream")
+    parser.add_argument('--cmd1', type=str, action='store', default="tshark -V -n -i any udp dst port 4729 and ip dst 127.0.0.2", help="command stream")
     parser.add_argument('--openbtsdb2', type=str, action='store', default='/etc/OpenBTS/OpenBTS2.db', help="OpenBTS.db location")
     parser.add_argument('--openbts2', type=str, action='store', default='OpenBTS', help="OpenBTS process name")
     parser.add_argument('--transceiver2', type=str, action='store', default='transceiver', help="transceiver process name")
