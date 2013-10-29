@@ -202,7 +202,7 @@ class DualController(Controller):
         res = []
         ref_strength = strength_report[reference]
         for t in targets:
-            if strenth_report[t] > ref_strength + self.MAX_DELTA:
+            if strength_report[t] > ref_strength + self.MAX_DELTA:
                 res.append(t)
         return res
 
