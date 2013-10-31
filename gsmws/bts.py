@@ -97,7 +97,7 @@ class BTS(object):
         # set IPs in openbts
         conf_string = "config GSM.Neighbors %s" % fake_ip_str
         r = self.config(conf_string)
-        logging.info("Updating neighbors with conf string '%s': '%s'" % conf_string, r)
+        logging.info("Updating neighbors with conf string '%s': '%s'" % (conf_string, r))
 
         # TODO: bug here: if the database locks, we're fucked. Should handle this but can't remember exact exception (on plane)
         # now, update the neighbor table for each
