@@ -96,7 +96,7 @@ class BTS(object):
 
         # set IPs in openbts
         # note, this gets cut off if it's over 60 char long, hence 127.0.9.x instead of 127.0.10.x
-        conf_string = "config GSM.Neighbors %s" % fake_ip_str
+        conf_string = "config GSM.Neighbors %s\n" % fake_ip_str
         r = self.config(conf_string)
         logging.info("Updating neighbors with conf string '%s': '%s'" % (conf_string, r))
 
