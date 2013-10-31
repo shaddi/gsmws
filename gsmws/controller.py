@@ -235,6 +235,8 @@ class DualController(Controller):
                             pass # just don't pick for now
                         new_neighbors = self.pick_new_neighbors(bts.id_num)
                         logging.info("New neighbors (BTS %d): %s" % (bts.id_num, new_neighbors))
+                        if None in new_neighbors:
+                            continue # we need to wait until we've got a list of new neighbors that includes the other ARFCNs: try next time!
                         bts.set_neighbors(new_neighbors)
                         bts.decoder.ignore_reports = True
                         bts.ignored_since = now
