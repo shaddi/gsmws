@@ -90,11 +90,12 @@ class BTS(object):
         have. Once we've done that, we can directly manipulate the neighbor table
         using those IP addresses.
         """
-        fake_ips  = ["127.0.10.%d" % (num+1) for num in range(0,len(arfcns))]
+        fake_ips  = ["127.0.9.%d" % (num+1) for num in range(0,len(arfcns))]
         neighbors = dict(zip(arfcns, fake_ips))
         fake_ip_str = " ".join([str(_) for _  in fake_ips])
 
         # set IPs in openbts
+        # note, this gets cut off if it's over 60 char long, hence 127.0.9.x instead of 127.0.10.x
         conf_string = "config GSM.Neighbors %s" % fake_ip_str
         r = self.config(conf_string)
         logging.info("Updating neighbors with conf string '%s': '%s'" % (conf_string, r))
