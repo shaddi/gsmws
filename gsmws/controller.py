@@ -202,6 +202,10 @@ class DualController(Controller):
         res = []
         ref_strength = strength_report[reference]
         for t in targets:
+            if t not in strength_report:
+                # we don't have enough info. we *could* just not hear the other
+                # arfcns at all but that's unlikely.
+                continue
             if strength_report[t] > ref_strength + self.MAX_DELTA:
                 res.append(t)
         return res
