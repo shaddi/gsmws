@@ -225,6 +225,7 @@ class DualController(Controller):
 
                 for bts in self.bts_units:
                     td = (now - bts.last_cycle_time)
+                    logging.info("BTS %d td=%s" % (bts.id_num, td))
                     if td.seconds > self.NEIGHBOR_CYCLE_TIME:
                         try:
                             new_arfcn = self.pick_new_safe_arfcn()
