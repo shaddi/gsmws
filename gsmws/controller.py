@@ -225,7 +225,7 @@ class DualController(Controller):
                         bts.decoder.ignore_reports = False
 
                 for bts in self.bts_units:
-                    logging.info("BTS %d. Reported ARFCN=%s Intended Neighbors=%s Reported Neighbors=%s" % (bts.id_num, bts.current_arfcn, bts.neighbors, bts.last_arfcns))
+                    logging.info("BTS %d. Reported ARFCN=%s Intended Neighbors=%s Reported Neighbors=%s" % (bts.id_num, bts.current_arfcn, sorted(bts.neighbors), sorted(bts.last_arfcns)))
 
                 for bts in self.bts_units:
                     td = (now - bts.last_cycle_time)
