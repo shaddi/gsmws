@@ -188,7 +188,7 @@ class DualController(Controller):
 
     def pick_new_neighbors(self, bts_id_num):
         other_arfcns = [b.current_arfcn for b in self.bts_units if b.id_num != bts_id_num] # FIXME
-        logging.info("BTS %d: Current ARFCN=%s Other ARFCNs: %s" % (bts_id_num, self.bts_units[bts_id_num].current_arfcn, other_arfcns))
+        #logging.info("BTS %d: Current ARFCN=%s Other ARFCNs: %s" % (bts_id_num, self.bts_units[bts_id_num].current_arfcn, other_arfcns))
         with self.gsmwsdb_lock:
             existing = [arfcn for res in self.gsmwsdb.execute("SELECT ARFCN FROM AVAIL_ARFCN").fetchall() for arfcn in res]
         random_arfcns = random.sample([_ for _ in range(1,124) if (_ not in existing and _ not in other_arfcns)], 6 - len(other_arfcns))
@@ -230,7 +230,6 @@ class DualController(Controller):
                 for bts in self.bts_units:
                     td = (now - bts.last_cycle_time)
                     logging.info("BTS %d td=%s, cycle=%d" % (bts.id_num, td.seconds, self.NEIGHBOR_CYCLE_TIME))
-                    #logging.info("BTS %d. ARFCN=%s Neighbors=%s" % (bts.id_num, bts.current_arfcn, bts.neighbors))
                     if td.seconds > self.NEIGHBOR_CYCLE_TIME:
                         try:
                             new_arfcn = self.pick_new_safe_arfcn()
@@ -238,6 +237,7 @@ class DualController(Controller):
                         except IndexError:
                             logging.error("Unable to pick new safe ARFCN!")
                             pass # just don't pick for now
+
                         new_neighbors = self.pick_new_neighbors(bts.id_num)
                         logging.info("New neighbors (BTS %d): %s" % (bts.id_num, new_neighbors))
                         if None in new_neighbors:
@@ -247,7 +247,6 @@ class DualController(Controller):
                         bts.ignored_since = now
                         bts.last_cycle_time = now
 
-                    logging.info("Current ARFCN (BTS %d): %s" % (bts.id_num, bts.current_arfcn))
 
                     rssis = bts.decoder.rssi()
                     self.update_rssi_db(rssis)
