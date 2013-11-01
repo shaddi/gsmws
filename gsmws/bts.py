@@ -114,6 +114,7 @@ class BTS(object):
             ip = fake_ips[i]
             arfcn = arfcns[i]
             self.neighbor_table.execute("DELETE FROM NEIGHBOR_TABLE WHERE C0=?", (arfcn,))
+            self.neighbor_table.execute("DELETE FROM NEIGHBOR_TABLE WHERE IPADDRESS=?", (ip,))
             self.neighbor_table.execute("INSERT INTO NEIGHBOR_TABLE VALUES (?, ?, ?, ?, ?)", (ip, updated, holdoff, arfcn, bsic))
         self.neighbor_table.commit()
 
