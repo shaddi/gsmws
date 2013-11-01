@@ -7,7 +7,7 @@ import envoy
 
 
 class BTS(object):
-    def __init__(self, db_loc, openbts_proc, trans_proc, loglvl=logging.DEBUG):
+    def __init__(self, db_loc, openbts_proc, trans_proc, loglvl=logging.DEBUG, id_num=0):
         self.process_name = openbts_proc
         self.transceiver_process = trans_proc
 
@@ -21,6 +21,8 @@ class BTS(object):
         self.loglvl = loglvl
 
         self.decoder = None # we can't create our own, since we need a global gsmwsdb_lock from controller
+
+        self.id_num = id_num
 
 
     def init_decoder(self, gsm_decoder):

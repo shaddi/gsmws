@@ -27,7 +27,7 @@ class MeasurementReportList(object):
 
 
 class GSMDecoder(threading.Thread):
-    def __init__(self, stream, db_lock, gsmwsdb_location="/tmp/gsmws.db", maxlen=100, loglvl=logging.INFO):
+    def __init__(self, stream, db_lock, gsmwsdb_location="/tmp/gsmws.db", maxlen=100, loglvl=logging.INFO, decoder_id=0):
         threading.Thread.__init__(self)
         self.stream = stream
         self.current_message = ""
@@ -40,6 +40,8 @@ class GSMDecoder(threading.Thread):
         self.gsmwsdb_lock = db_lock
         self.gsmwsdb_location = gsmwsdb_location
         self.gsmwsdb = None # this gets created in run()
+
+        self.decoder_id = decoder_id
 
         self.rssi_queue = Queue.Queue()
 
@@ -151,7 +153,7 @@ class GSMDecoder(threading.Thread):
 
             report = gsm.MeasurementReport(self.last_arfcns, self.current_arfcn, message)
             if report.valid:
-                logging.info("MeasurementReport: " + str(report))
+                logging.info("(decoder %d) MeasurementReport: " % (self.decoder_id) + str(report))
                 self.reports.put(report.current_strengths)
                 for arfcn in report.current_strengths:
                     self.update_max_strength(arfcn,report.current_strengths[arfcn])
@@ -159,16 +161,16 @@ class GSMDecoder(threading.Thread):
 
                 for arfcn in report.current_bsics:
                     if report.current_bsics[arfcn] != None:
-                        logging.warning("ZOUNDS! AN ENEMY BSIC: %d (ARFCN %d)" % (report.current_bsics[arfcn], arfcn))
+                        logging.warning("ZOUNDS! AN ENEMY BSIC: %d (ARFCN %d, decoder %d)" % (report.current_bsics[arfcn], arfcn, self.decoder_id))
         elif message.startswith("GSM CCCH - System Information Type 2"):
             sysinfo2 = gsm.SystemInformationTwo(message)
             self.last_arfcns = sysinfo2.arfcns
             self.ncc_permitted = sysinfo2.ncc_permitted
-            logging.debug("SystemInformation2: %s" % str(sysinfo2.arfcns))
+            logging.debug("(decoder %d) SystemInformation2: %s" % (self.decoder_id, str(sysinfo2.arfcns)))
         elif message.startswith("GSM TAP Header"):
             gsmtap = gsm.GSMTAP(message)
             self.current_arfcn = gsmtap.arfcn
-            logging.debug("GSMTAP: Current ARFCN=%s" % str(gsmtap.arfcn))
+            logging.debug("(decoder %d) GSMTAP: Current ARFCN=%s" % (self.decoder_id, str(gsmtap.arfcn)))
 
 
 if __name__ == "__main__":

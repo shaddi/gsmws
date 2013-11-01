@@ -174,14 +174,14 @@ class DualController(Controller):
 
         now = datetime.datetime.now()
         for conf in self.BTS_CONF:
-            gsmd = decoder.GSMDecoder(conf['stream'], self.gsmwsdb_lock, self.gsmwsdb_location, loglvl=self.loglvl)
-            bts = conf['bts_class'](conf['db_loc'], conf['openbts_proc'], conf['trans_proc'], self.loglvl)
+            gsmd = decoder.GSMDecoder(conf['stream'], self.gsmwsdb_lock, self.gsmwsdb_location, loglvl=self.loglvl, decoder_id=cycle_count)
+            bts = conf['bts_class'](conf['db_loc'], conf['openbts_proc'], conf['trans_proc'], self.loglvl, id_num=cycle_count)
+
             bts.init_decoder(gsmd)
 
             # set up cycle time/ignored since
             bts.ignored_since = now
             bts.last_cycle_time = now - datetime.timedelta(seconds = (cycle_count*cycle_offset + self.NEIGHBOR_CYCLE_TIME)) # keep them out of sync, but make sure they start
-            bts.id_num = cycle_count
 
             self.bts_units.append(bts)
             cycle_count += 1
