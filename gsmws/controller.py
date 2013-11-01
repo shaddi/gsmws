@@ -225,9 +225,12 @@ class DualController(Controller):
                         bts.decoder.ignore_reports = False
 
                 for bts in self.bts_units:
+                    logging.info("BTS %d. ARFCN=%s Neighbors=%s" % (bts.id_num, bts.current_arfcn, bts.neighbors))
+
+                for bts in self.bts_units:
                     td = (now - bts.last_cycle_time)
                     logging.info("BTS %d td=%s, cycle=%d" % (bts.id_num, td.seconds, self.NEIGHBOR_CYCLE_TIME))
-                    logging.info("BTS %d. ARFCN=%s Neighbors=%s" % (bts.id_num, bts.current_arfcn, bts.neighbors))
+                    #logging.info("BTS %d. ARFCN=%s Neighbors=%s" % (bts.id_num, bts.current_arfcn, bts.neighbors))
                     if td.seconds > self.NEIGHBOR_CYCLE_TIME:
                         try:
                             new_arfcn = self.pick_new_safe_arfcn()
