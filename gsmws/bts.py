@@ -116,7 +116,7 @@ class BTS(object):
         holdoff = 2**20 # 12 days... YOLO! (and only check once, heh heh)
         bsic = 1 # TODO does this matter?
         for i in range(0, len(arfcns)):
-            ip = fake_ips[i]
+            ip = "%s:16001" % (fake_ips[i])
             arfcn = arfcns[i]
             self.neighbor_table.execute("DELETE FROM NEIGHBOR_TABLE WHERE C0=?", (arfcn,))
             self.neighbor_table.execute("DELETE FROM NEIGHBOR_TABLE WHERE IPADDRESS=?", (ip,))
