@@ -247,6 +247,8 @@ class DualController(Controller):
                         bts.ignored_since = now
                         bts.last_cycle_time = now
 
+                    # continually do this so OpenBTS doesn't delete these
+                    bts.set_neighbors(bts.neighbors)
 
                     rssis = bts.decoder.rssi()
                     self.update_rssi_db(rssis)

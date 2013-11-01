@@ -17,6 +17,7 @@ class BTS(object):
 
         self.neighbor_table = sqlite3.connect(self.config("config Peering.NeighborTable.Path").split()[1]) # likewise, from the openbts.db
         self.neighbors = []
+        self.neighbor_offset = 0
 
         self.loglvl = loglvl
 
@@ -93,14 +94,14 @@ class BTS(object):
         have. Once we've done that, we can directly manipulate the neighbor table
         using those IP addresses.
         """
-        fake_ips  = ["127.0.9.%d" % (num+1) for num in range(0,len(arfcns))]
+        self.neighbor_offset = (self.neighbor_offset + 1) % 2
+        fake_ips  = ["127.0.9.%d" % (num+1+self.neighbor_offset) for num in range(0,len(arfcns))]
         neighbors = dict(zip(arfcns, fake_ips))
         fake_ip_str = " ".join([str(_) for _  in fake_ips])
 
         self.neighbors = arfcns
 
         # set IPs in openbts
-        # note, this gets cut off if it's over 60 char long, hence 127.0.9.x instead of 127.0.10.x
         conf_string = "config GSM.Neighbors %s9 \n" % fake_ip_str
         r = self.config(conf_string)
         logging.info("Updating neighbors with conf string '%s': '%s'" % (conf_string, r))
