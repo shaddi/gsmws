@@ -77,7 +77,7 @@ class BTS(object):
         if immediate:
             self.restart()
 
-    def set_neighbors(self, arfcns):
+    def set_neighbors(self, arfcns, port=16001):
         """
         The new OpenBTS handover feature makes setting the neighbor list a bit
         more complicated. You're supposed to just set the IP addresses of the
@@ -117,7 +117,7 @@ class BTS(object):
         holdoff = 2**20 # 12 days... YOLO! (and only check once, heh heh)
         bsic = 1 # TODO does this matter?
         for i in range(0, len(arfcns)):
-            ip = "%s:16001" % (fake_ips[i])
+            ip = "%s:%d" % (fake_ips[i], port)
             arfcn = arfcns[i]
             self.neighbor_table.execute("DELETE FROM NEIGHBOR_TABLE WHERE C0=?", (arfcn,))
             self.neighbor_table.execute("DELETE FROM NEIGHBOR_TABLE WHERE IPADDRESS=?", (ip,))

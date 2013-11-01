@@ -242,13 +242,13 @@ class DualController(Controller):
                         logging.info("New neighbors (BTS %d): %s" % (bts.id_num, new_neighbors))
                         if None in new_neighbors:
                             continue # we need to wait until we've got a list of new neighbors that includes the other ARFCNs: try next time!
-                        bts.set_neighbors(new_neighbors)
+                        bts.set_neighbors(new_neighbors, 16001+bts.id_num)
                         bts.decoder.ignore_reports = True
                         bts.ignored_since = now
                         bts.last_cycle_time = now
 
                     # continually do this so OpenBTS doesn't delete these
-                    bts.set_neighbors(bts.neighbors)
+                    bts.set_neighbors(bts.neighbors, 16001+bts.id_num)
 
                     rssis = bts.decoder.rssi()
                     self.update_rssi_db(rssis)
