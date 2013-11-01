@@ -190,7 +190,7 @@ class DualController(Controller):
         other_arfcns = [b.current_arfcn for b in self.bts_units if b.id_num != bts_id_num] # FIXME
         with self.gsmwsdb_lock:
             existing = [arfcn for res in self.gsmwsdb.execute("SELECT ARFCN FROM AVAIL_ARFCN").fetchall() for arfcn in res]
-        random_arfcns = random.sample([_ for _ in range(1,124) if (_ not in existing and _ not in other_arfcns)], 6 - len(other_arfcns))
+        random_arfcns = random.sample([_ for _ in range(1,124) if (_ not in existing and _ not in other_arfcns)], 5 - len(other_arfcns))
         logging.info("BTS %d: Current ARFCN=%s Other ARFCNs: %s Random ARFCNs: %s" % (bts_id_num, self.bts_units[bts_id_num].current_arfcn, other_arfcns, random_arfcns))
         return other_arfcns + random_arfcns
 
