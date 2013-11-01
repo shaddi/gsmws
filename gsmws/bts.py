@@ -16,6 +16,7 @@ class BTS(object):
         openbtsdb.close() # don't touch this anymore
 
         self.neighbor_table = sqlite3.connect(self.config("config Peering.NeighborTable.Path").split()[1]) # likewise, from the openbts.db
+        self.neighbors = []
 
         self.loglvl = loglvl
 
@@ -93,6 +94,8 @@ class BTS(object):
         fake_ips  = ["127.0.9.%d" % (num+1) for num in range(0,len(arfcns))]
         neighbors = dict(zip(arfcns, fake_ips))
         fake_ip_str = " ".join([str(_) for _  in fake_ips])
+
+        self.neighbors = arfcns
 
         # set IPs in openbts
         # note, this gets cut off if it's over 60 char long, hence 127.0.9.x instead of 127.0.10.x
