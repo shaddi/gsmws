@@ -38,6 +38,10 @@ class BTS(object):
         return self.decoder.current_arfcn
 
     @property
+    def last_arfcns(self):
+        return self.decoder.last_arfcns
+
+    @property
     def reports(self):
         return self.decoder.reports.getall()
 

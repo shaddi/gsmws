@@ -161,7 +161,7 @@ class GSMDecoder(threading.Thread):
 
                 for arfcn in report.current_bsics:
                     if report.current_bsics[arfcn] != None:
-                        logging.warning("ZOUNDS! AN ENEMY BSIC: %d (ARFCN %d, decoder %d)" % (report.current_bsics[arfcn], arfcn, self.decoder_id))
+                        logging.debug("ZOUNDS! AN ENEMY BSIC: %d (ARFCN %d, decoder %d)" % (report.current_bsics[arfcn], arfcn, self.decoder_id))
         elif message.startswith("GSM CCCH - System Information Type 2"):
             sysinfo2 = gsm.SystemInformationTwo(message)
             self.last_arfcns = sysinfo2.arfcns
