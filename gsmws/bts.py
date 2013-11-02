@@ -15,7 +15,12 @@ class BTS(object):
         self.cmd_socket = openbtsdb.execute("SELECT VALUESTRING FROM CONFIG WHERE KEYSTRING=?", ("CLI.SocketPath",)).fetchall()[0][0]
         openbtsdb.close() # don't touch this anymore
 
-        self.neighbor_table = sqlite3.connect(self.config("config Peering.NeighborTable.Path").split()[1]) # likewise, from the openbts.db
+        # HACK XXX XXX FIXME
+        if id_num == 1:
+            self.neighbor_table = sqlite3.connect("/var/run/NeighborTable.db")
+        else:
+            self.neighbor_table = sqlite3.connect("/var/run/NeighborTable2.db")
+        #self.neighbor_table = sqlite3.connect(self.config("config Peering.NeighborTable.Path").split()[1]) # likewise, from the openbts.db
         self.neighbors = []
         self.neighbor_offset = 0
 
