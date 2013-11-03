@@ -189,7 +189,7 @@ class DualController(Controller):
     def pick_new_neighbors(self, bts_id_num, testing=True):
         other_arfcns = [b.current_arfcn for b in self.bts_units if b.id_num != bts_id_num] # FIXME
         if testing:
-            random_arfcns = [x.current_arfcn+10 for x in self.bts_units]
+            random_arfcns = [x.current_arfcn+10 for x in self.bts_units if x.current_arfcn!=None]
         else:
             with self.gsmwsdb_lock:
                 existing = [arfcn for res in self.gsmwsdb.execute("SELECT ARFCN FROM AVAIL_ARFCN").fetchall() for arfcn in res]
