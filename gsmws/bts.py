@@ -125,7 +125,7 @@ class BTS(object):
         self.neighbors = arfcns
 
         # set IPs in openbts
-        conf_string = "config GSM.Neighbors %s9 \n" % fake_ip_str
+        conf_string = "config GSM.Neighbors %s" % fake_ip_str
         r = self.config(conf_string)
         logging.debug("Updating neighbors (%s) with conf string '%s': '%s'" % (arfcns, conf_string, r))
 
