@@ -211,6 +211,7 @@ class DualController(Controller):
                 # arfcns at all but that's unlikely.
                 continue
             if strength_report[t] > ref_strength + self.MAX_DELTA:
+                logging.info("we should restart %d" % t)
                 res.append(t)
         return res
 
