@@ -67,10 +67,24 @@ class BTS(object):
         EVEN WORSE, we assume that we're in OpenBTS's runloop which will restart us
         automatically. What a mess... """
         logging.warning("Restarting %s..." % self.process_name)
-        envoy.run("killall %s %s" % (self.process_name, self.transceiver_process))
-        time.sleep(2)
-        if len(envoy.run("ps aux | grep './%s'" % self.process_name))==0:
-            pass # TODO: run OpenBTS
+
+        # HACK XXX
+        # get the pid of our transceiver and kill it, thus restarting openbts
+        r = envoy.run("ps aux").std_out.split("\n")
+        target = "transceiver 1 %d" % self.id_num
+        pid = None
+        for item in r:
+            if target in item:
+                pid = item.split()[1]
+                break
+
+        envoy.run("kill %s" % pid)
+        time.sleep(1)
+
+        #envoy.run("killall %s %s" % (self.process_name, self.transceiver_process))
+        #time.sleep(2)
+        #if len(envoy.run("ps aux | grep './%s'" % self.process_name).std_out)==0:
+        #    pass # TODO: run OpenBTS
 
     def change_arfcn(self, new_arfcn, immediate=False):
         """ Change OpenBTS to use a new ARFCN. By default, just update the DB, but

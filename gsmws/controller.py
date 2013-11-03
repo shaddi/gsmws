@@ -44,7 +44,7 @@ class Controller(object):
     def update_rssi_db(self, rssis):
         # rssis: A dict of ARFCN->RSSI that's up to date as of now (it already captures our historical knowledge)
         with self.gsmwsdb_lock:
-            logging.info("Updating RSSIs: %s" % rssis)
+            logging.debug("Updating RSSIs: %s" % rssis)
             existing = [arfcn for res in self.gsmwsdb.execute("SELECT ARFCN FROM AVAIL_ARFCN").fetchall() for arfcn in res]
             timestamp = datetime.datetime.now()
 
@@ -186,11 +186,14 @@ class DualController(Controller):
             self.bts_units.append(bts)
             cycle_count += 1
 
-    def pick_new_neighbors(self, bts_id_num):
+    def pick_new_neighbors(self, bts_id_num, testing=True):
         other_arfcns = [b.current_arfcn for b in self.bts_units if b.id_num != bts_id_num] # FIXME
-        with self.gsmwsdb_lock:
-            existing = [arfcn for res in self.gsmwsdb.execute("SELECT ARFCN FROM AVAIL_ARFCN").fetchall() for arfcn in res]
-        random_arfcns = random.sample([_ for _ in range(1,124) if (_ not in existing and _ not in other_arfcns)], 5 - len(other_arfcns))
+        if testing:
+            random_arfcns = [x.current_arfcn+10 for x in self.bts_units]
+        else:
+            with self.gsmwsdb_lock:
+                existing = [arfcn for res in self.gsmwsdb.execute("SELECT ARFCN FROM AVAIL_ARFCN").fetchall() for arfcn in res]
+            random_arfcns = random.sample([_ for _ in range(1,124) if (_ not in existing and _ not in other_arfcns)], 5 - len(other_arfcns))
         logging.info("BTS %d: Current ARFCN=%s Other ARFCNs: %s Random ARFCNs: %s" % (bts_id_num, self.bts_units[bts_id_num].current_arfcn, other_arfcns, random_arfcns))
         return other_arfcns + random_arfcns
 
@@ -231,12 +234,12 @@ class DualController(Controller):
                     td = (now - bts.last_cycle_time)
                     logging.debug("BTS %d td=%s, cycle=%d" % (bts.id_num, td.seconds, self.NEIGHBOR_CYCLE_TIME))
                     if td.seconds > self.NEIGHBOR_CYCLE_TIME:
-                        try:
-                            new_arfcn = self.pick_new_safe_arfcn()
-                            bts.change_arfcn(new_arfcn)
-                        except IndexError:
-                            logging.error("Unable to pick new safe ARFCN!")
-                            pass # just don't pick for now
+                        #try:
+                        #    #new_arfcn = self.pick_new_safe_arfcn()
+                        #    #bts.change_arfcn(new_arfcn) # XXX don't change, for testing
+                        #except IndexError:
+                        #    logging.error("Unable to pick new safe ARFCN!")
+                        #    pass # just don't pick for now
 
                         new_neighbors = self.pick_new_neighbors(bts.id_num)
                         logging.info("New neighbors (BTS %d): %s" % (bts.id_num, new_neighbors))
@@ -252,7 +255,7 @@ class DualController(Controller):
 
                     rssis = bts.decoder.rssi()
                     self.update_rssi_db(rssis)
-                    logging.info("Safe ARFCNs (BTS %d): %s" % (bts.id_num, str(self.safe_arfcns())))
+                    logging.debug("Safe ARFCNs (BTS %d): %s" % (bts.id_num, str(self.safe_arfcns())))
 
                 # compare the BTS readings
                 current_arfcns = [b.current_arfcn for b in self.bts_units]
@@ -266,8 +269,9 @@ class DualController(Controller):
                 # kill what needs to be killed
                 for bts in self.bts_units:
                     if bts.current_arfcn in to_restart:
-                        new_arfcn = self.pick_new_safe_arfcn()
-                        bts.change_arfcn(new_arfcn, True)
+                        #new_arfcn = self.pick_new_safe_arfcn()
+                        #bts.change_arfcn(new_arfcn, True)
+                        bts.change_arfcn(bts.current_arfcn + 10, True)
 
                 time.sleep(self.SLEEP_TIME)
             except KeyboardInterrupt:
