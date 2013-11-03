@@ -57,7 +57,7 @@ class BTS(object):
         # THIS IS THE OFFICIAL WAY TO DO THIS
         # IN THE NAME OF ALL THAT IS HOLY
         # TODO: expanduser here?
-        r = envoy.run("echo -n '%s' | sudo /home/openbts/OpenBTSDo %s" % (config_str, self.cmd_socket))
+        r = envoy.run("echo '%s' | sudo /home/openbts/OpenBTSDo %s" % (config_str, self.cmd_socket))
         return r.std_out.strip()
 
 
