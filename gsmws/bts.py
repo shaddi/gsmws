@@ -6,8 +6,16 @@ import logging
 import envoy
 
 
+# these are the potential txatten states that each BTS can be in.
+# algorithm is as follows:
+# T0: on
+# T0 + T - ST*3: l3
+# T0 + T - ST*2: l2
+# T0 + T - ST: l1
+# T0 + T: off
+
 class BTS(object):
-    def __init__(self, db_loc, openbts_proc, trans_proc, loglvl=logging.DEBUG, id_num=0):
+    def __init__(self, db_loc, openbts_proc, trans_proc, loglvl=logging.DEBUG, id_num=0, start_time=None, cycle_time=90):
         self.process_name = openbts_proc
         self.transceiver_process = trans_proc
 
@@ -19,7 +27,7 @@ class BTS(object):
         if id_num == 0:
             self.neighbor_table = sqlite3.connect("/var/run/NeighborTable.db")
         else:
-            self.neighbor_table = sqlite3.connect("/var/run/NeighborTable2.db")
+            self.neighbor_table = sqlite3.connect("/var/run/NeighborTable%d.db" % (id_num + 1))
         #self.neighbor_table = sqlite3.connect(self.config("config Peering.NeighborTable.Path").split()[1]) # likewise, from the openbts.db
         self.neighbors = []
         self.neighbor_offset = 0
@@ -30,6 +38,30 @@ class BTS(object):
 
         self.id_num = id_num
 
+        # state management
+        self.state = None
+        self.txattens = {0: 1, 1: 20, 2: 40, 3: 80}
+        self.cycle_time = cycle_time
+        if not start_time:
+            self.start_time = datetime.datetime.now()
+        else:
+            self.start_time = start_time
+
+    def timefloor(self, dt, fl=10):
+        return datetime.datetime(dt.year, dt.month, dt.day, dt.hour, dt.second - (dt.second % fl))
+
+    def next_atten_state(self):
+        """
+        Picks one of four possible state levels. This ensures that one BTS is
+        always in state 0 (full power). This is safe to call all the time!
+        """
+        n = self.timefloor(datetime.datetime.now())
+        t = int((n - self.start_time()).total_seconds())
+        sec = (t % (self.cycle_time * 2) - (self.cycle_time - 10)) / 10.
+        state = min(3, max(0, int(sec)))
+        if state != self.state:
+            self.state = state
+            self.config("txatten %d" % self.txattens[state])
 
     def init_decoder(self, gsm_decoder):
         """ Start the decoder for this BTS. We do this separately since we want
