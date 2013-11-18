@@ -315,7 +315,7 @@ class HandoverController(Controller):
         now = datetime.datetime.now()
         for conf in self.BTS_CONF:
             gsmd = decoder.GSMDecoder(conf['stream'], self.gsmwsdb_lock, self.gsmwsdb_location, loglvl=self.loglvl, decoder_id=cycle_count)
-            bts = conf['bts_class'](conf['db_loc'], conf['openbts_proc'], conf['trans_proc'], self.loglvl, id_num=cycle_count)
+            bts = conf['bts_class'](conf['db_loc'], conf['openbts_proc'], conf['trans_proc'], self.loglvl, id_num=cycle_count, start_time=(now+datetime.timedelta(seconds=90*cycle_count)))
 
             bts.init_decoder(gsmd)
 
@@ -412,7 +412,7 @@ class HandoverController(Controller):
                     for t in r:
                         if t in arfcn_to_bts:
                             if r[t] > 0 and arfcn_to_bts[t].is_off():
-                            to_restart |= set(arfcn_to_bts[t])
+                                to_restart |= set(arfcn_to_bts[t])
 
                 # kill what needs to be killed
                 for bts in to_restart:
