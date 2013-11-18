@@ -40,6 +40,7 @@ class BTS(object):
 
         # state management
         self.state = None
+        self.last_switch = None
         self.txattens = {0: 1, 1: 20, 2: 40, 3: 80}
         self.cycle_time = cycle_time
         if not start_time:
@@ -55,12 +56,14 @@ class BTS(object):
         Picks one of four possible state levels. This ensures that one BTS is
         always in state 0 (full power). This is safe to call all the time!
         """
-        n = self.timefloor(datetime.datetime.now())
+        now = datetime.datetime.now()
+        n = self.timefloor(now)
         t = int((n - self.start_time()).total_seconds())
         sec = (t % (self.cycle_time * 2) - (self.cycle_time - 10)) / 10.
         state = min(3, max(0, int(sec)))
         if state != self.state:
             self.state = state
+            self.last_switch = now
             self.config("txatten %d" % self.txattens[state])
 
     def init_decoder(self, gsm_decoder):
@@ -69,6 +72,15 @@ class BTS(object):
         have a global DB lock until the controller starts."""
         self.decoder = gsm_decoder
         self.decoder.start()
+
+    def is_off(self):
+        """
+        We define the BTS as off if it's in txatten state 3 and has been there
+        for at least 10 seconds.
+        """
+        s_since_switch = int((self.last_switch - datetime.datetime.now()).total_seconds())
+        off = self.state == 3 and s_since_switch > 10
+        return off
 
     @property
     def current_arfcn(self):
@@ -132,7 +144,7 @@ class BTS(object):
         if immediate:
             self.restart()
 
-    def set_neighbors(self, arfcns, port=16001):
+    def set_neighbors(self, arfcns, port=16001, num_real=None):
         """
         The new OpenBTS handover feature makes setting the neighbor list a bit
         more complicated. You're supposed to just set the IP addresses of the
@@ -148,16 +160,25 @@ class BTS(object):
         neighbors; we simply incrementally add neighbor IPs based on how many we
         have. Once we've done that, we can directly manipulate the neighbor table
         using those IP addresses.
+
+        If we have a real BTS, we just assume the first arfcn is the ARFCN for
+        that BTS, and ignore it.
         """
-        self.neighbor_offset = (self.neighbor_offset + 1) % 2
-        fake_ips  = ["127.0.9.%d" % (num+1+self.neighbor_offset) for num in range(0,len(arfcns))]
-        neighbors = dict(zip(arfcns, fake_ips))
-        fake_ip_str = " ".join([str(_) for _  in fake_ips])
+        if num_real != None:
+            real_ip_str = "127.0.0.1"
+            self.neighbor_offset = (self.neighbor_offset + 1) % 2
+            fake_ips  = ["127.0.9.%d" % (num+1+self.neighbor_offset) for num in range(1,len(arfcns))]
+            fake_ip_str = " ".join([str(_) for _  in fake_ips])
+        else:
+            real_ip_str = ""
+            self.neighbor_offset = (self.neighbor_offset + 1) % 2
+            fake_ips  = ["127.0.9.%d" % (num+1+self.neighbor_offset) for num in range(0,len(arfcns))]
+            fake_ip_str = " ".join([str(_) for _  in fake_ips])
 
         self.neighbors = arfcns
 
         # set IPs in openbts
-        conf_string = "config GSM.Neighbors %s" % fake_ip_str
+        conf_string = "config GSM.Neighbors %s %s" % (real_ip_str, fake_ip_str)
         r = self.config(conf_string)
         logging.debug("Updating neighbors (%s) with conf string '%s': '%s'" % (arfcns, conf_string, r))
 
@@ -171,9 +192,12 @@ class BTS(object):
         updated = int(datetime.datetime.now().strftime("%s")) - 10 # ten seconds ago, unix time
         holdoff = 2**20 # 12 days... YOLO! (and only check once, heh heh)
         bsic = 1 # TODO does this matter?
-        for i in range(0, len(arfcns)):
+        for i in range(0, len(fake_ips)):
             ip = "%s:%d" % (fake_ips[i], port)
-            arfcn = arfcns[i]
+            if num_real:
+                arfcn = arfcns[i+1]
+            else:
+                arfcn = arfcns[i]
             self.neighbor_table.execute("DELETE FROM NEIGHBOR_TABLE WHERE C0=?", (arfcn,))
             self.neighbor_table.execute("DELETE FROM NEIGHBOR_TABLE WHERE IPADDRESS=?", (ip,))
             self.neighbor_table.execute("INSERT INTO NEIGHBOR_TABLE VALUES (?, ?, ?, ?, ?)", (ip, updated, holdoff, arfcn, bsic))
