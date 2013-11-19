@@ -49,7 +49,7 @@ class BTS(object):
             self.start_time = start_time
 
     def timefloor(self, dt, fl=10):
-        return datetime.datetime(dt.year, dt.month, dt.day, dt.hour, dt.second - (dt.second % fl))
+        return datetime.datetime(dt.year, dt.month, dt.day, dt.hour, dt.minute, dt.second - (dt.second % fl))
 
     def next_atten_state(self):
         """
