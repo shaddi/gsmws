@@ -64,6 +64,7 @@ class BTS(object):
         now = datetime.datetime.now()
         n = self.timefloor(now)
         t = int((n - self.start_time).total_seconds())
+        logging.info("txatten clock: %f" % t)
         sec = (t % (self.cycle_time * 2) - (self.cycle_time - 10)) / 10.
         state = min(3, max(0, int(sec)))
         if state != self.state:
