@@ -56,7 +56,11 @@ class BTS(object):
         Picks one of four possible state levels. This ensures that one BTS is
         always in state 0 (full power). This is safe to call all the time!
         """
-        logging.info("txatten BTS %d is now %d dBm (state %d)" % (self.id_num, self.txattens[self.state], self.state))
+        if self.state is not None:
+            logging.info("txatten BTS %d is now %d dBm (state %d)" % (self.id_num, self.txattens[self.state], self.state))
+        else:
+            logging.info("txatten BTS %d is not set (state None)" % (self.id_num))
+
         now = datetime.datetime.now()
         n = self.timefloor(now)
         t = int((n - self.start_time).total_seconds())
