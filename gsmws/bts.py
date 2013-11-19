@@ -56,6 +56,7 @@ class BTS(object):
         Picks one of four possible state levels. This ensures that one BTS is
         always in state 0 (full power). This is safe to call all the time!
         """
+        logging.info("txatten BTS %d is now %d dBm (state %d)" % (self.id_num, self.txattens[self.state], self.state))
         now = datetime.datetime.now()
         n = self.timefloor(now)
         t = int((n - self.start_time).total_seconds())
@@ -64,7 +65,7 @@ class BTS(object):
         if state != self.state:
             self.state = state
             self.last_switch = now
-            logging.info("txatten BTS %d is now %d dBm (state %d)" % (self.id_num, self.txattens[state], self.state))
+            logging.info("txatten BTS %d SWITCHED to %d dBm (state %d)" % (self.id_num, self.txattens[state], self.state))
             self.config("txatten %d" % self.txattens[state])
 
     def init_decoder(self, gsm_decoder):
