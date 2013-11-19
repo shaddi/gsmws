@@ -64,7 +64,7 @@ class BTS(object):
         if state != self.state:
             self.state = state
             self.last_switch = now
-            logging.info("txatten BTS %d is now %d dBm (state %s)", (self.id_num, self.txattens[state], self.state))
+            logging.info("txatten BTS %s is now %d dBm (state %s)", (self.id_num, self.txattens[state], self.state))
             self.config("txatten %d" % self.txattens[state])
 
     def init_decoder(self, gsm_decoder):
