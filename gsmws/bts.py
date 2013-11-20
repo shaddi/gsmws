@@ -87,7 +87,7 @@ class BTS(object):
         """
         s_since_switch = int((datetime.datetime.now() - self.last_switch).total_seconds())
         off = self.state == 3 and s_since_switch > 10
-        logging.info("is_off? bts %d off=%s s_since: %d state=%d" % (self.id_num, off, s_since_switch, self.state))
+        logging.debug("is_off? bts %d off=%s s_since: %d state=%d" % (self.id_num, off, s_since_switch, self.state))
         return off
 
     @property
