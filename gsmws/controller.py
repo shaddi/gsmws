@@ -411,7 +411,7 @@ class HandoverController(Controller):
                 for r in reports:
                     for t in r:
                         if t in arfcn_to_bts:
-                            logging.debug("Report bts %d (ARFCN %s) is_off=%s report=%d" % (arfcn_to_bts[t].id_num, t, arfcn_to_bts[t].is_off(), r[t])
+                            logging.info("Report bts %d (ARFCN %s) is_off=%s report=%d" % (arfcn_to_bts[t].id_num, t, arfcn_to_bts[t].is_off(), r[t]))
                             if r[t] > 0 and arfcn_to_bts[t].is_off():
                                 to_restart |= set(arfcn_to_bts[t])
 
