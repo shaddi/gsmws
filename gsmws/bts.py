@@ -85,7 +85,7 @@ class BTS(object):
         We define the BTS as off if it's in txatten state 3 and has been there
         for at least 10 seconds.
         """
-        s_since_switch = int((self.last_switch - datetime.datetime.now()).total_seconds())
+        s_since_switch = int((datetime.datetime.now() - self.last_switch).total_seconds())
         off = self.state == 3 and s_since_switch > 10
         logging.info("is_off? bts %d off=%s s_since: %d state=%d" % (self.id_num, off, s_since_switch, self.state))
         return off
