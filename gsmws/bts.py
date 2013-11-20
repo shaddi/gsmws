@@ -41,7 +41,7 @@ class BTS(object):
         # state management
         self.state = None
         self.last_switch = None
-        self.txattens = {0: 1, 1: 20, 2: 40, 3: 80}
+        self.txattens = {0: 0, 1: 30, 2: 55, 3: 100}
         self.cycle_time = cycle_time
         if not start_time:
             self.start_time = datetime.datetime.now()

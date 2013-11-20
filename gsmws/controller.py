@@ -394,7 +394,7 @@ class HandoverController(Controller):
                         bts.last_cycle_time = now
 
                     # continually do this so OpenBTS doesn't delete these
-                    bts.set_neighbors(bts.neighbors, 16001+bts.id_num, num_real=1)
+                    #bts.set_neighbors(bts.neighbors, 16001+bts.id_num, num_real=1)
 
                     rssis = bts.decoder.rssi()
                     self.update_rssi_db(rssis)
@@ -411,6 +411,7 @@ class HandoverController(Controller):
                 for r in reports:
                     for t in r:
                         if t in arfcn_to_bts:
+                            logging.debug("Report bts %d (ARFCN %s) is_off=%s report=%d" % (arfcn_to_bts[t].id_num, t, arfcn_to_bts[t].is_off(), r[t])
                             if r[t] > 0 and arfcn_to_bts[t].is_off():
                                 to_restart |= set(arfcn_to_bts[t])
 
