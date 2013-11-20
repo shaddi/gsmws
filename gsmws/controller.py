@@ -341,6 +341,8 @@ class HandoverController(Controller):
         self.initdb() # set up the gsmws db
         self.setup_bts() # set up the BTS units
 
+        restarted = False
+
         while True:
             try:
                 now = datetime.datetime.now()
@@ -394,7 +396,8 @@ class HandoverController(Controller):
                         bts.last_cycle_time = now
 
                     # continually do this so OpenBTS doesn't delete these
-                    #bts.set_neighbors(bts.neighbors, 16001+bts.id_num, num_real=1)
+                    if restarted:
+                        bts.set_neighbors(bts.neighbors, 16001+bts.id_num, num_real=1)
 
                     rssis = bts.decoder.rssi()
                     self.update_rssi_db(rssis)
@@ -417,8 +420,14 @@ class HandoverController(Controller):
 
                 logging.info("to_restart: %s" % (to_restart))
                 # kill what needs to be killed
+                restarted = False
                 for bts in to_restart:
                     bts.change_arfcn(bts.current_arfcn + 10, True)
+                    restarted = True
+
+                if restarted:
+                    time.sleep(20) # to give us time to restart OpenBTS... really, really need to fix that segfault-on-start bug
+
 
                 time.sleep(self.SLEEP_TIME)
             except KeyboardInterrupt:
