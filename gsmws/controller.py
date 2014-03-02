@@ -390,14 +390,16 @@ class HandoverController(Controller):
                         else:
                             new_neighbors = [20, 40]
                         logging.info("New neighbors (BTS %d): %s" % (bts.id_num, new_neighbors))
-                        bts.set_neighbors(new_neighbors, 16001+bts.id_num, num_real=1)
+
+                        neighbor_port = 16002 if bts.id_num==0 else 16001
+                        bts.set_neighbors(new_neighbors, neighbor_port, num_real=1)
                         bts.decoder.ignore_reports = True
                         bts.ignored_since = now
                         bts.last_cycle_time = now
 
                     # continually do this so OpenBTS doesn't delete these
                     if restarted:
-                        bts.set_neighbors(bts.neighbors, 16001+bts.id_num, num_real=1)
+                        bts.set_neighbors(bts.neighbors, neighbor_port, num_real=1)
 
                     rssis = bts.decoder.rssi()
                     self.update_rssi_db(rssis)

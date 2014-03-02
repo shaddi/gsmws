@@ -29,6 +29,8 @@ class BTS(object):
         else:
             self.neighbor_table = sqlite3.connect("/var/run/NeighborTable%d.db" % (id_num + 1))
         #self.neighbor_table = sqlite3.connect(self.config("config Peering.NeighborTable.Path").split()[1]) # likewise, from the openbts.db
+
+        # TODO: really should define the PeeringPort the BTS listens on
         self.neighbors = []
         self.neighbor_offset = 0
 
@@ -164,16 +166,19 @@ class BTS(object):
         be deleted. Once we've added an IP, we can manually update the
         NeighborTable with our list of neighbor ARFCNs.
 
-        Our algorithm here is to use unrouteable 127.0.10.0/24 addresses for our
+        Our algorithm here is to use unrouteable 127.0.9.0/24 addresses for our
         neighbors; we simply incrementally add neighbor IPs based on how many we
         have. Once we've done that, we can directly manipulate the neighbor table
         using those IP addresses.
 
         If we have a real BTS, we just assume the first arfcn is the ARFCN for
         that BTS, and ignore it.
+
+        BTS0 has Peering.Port 16001; BTS1 uses Peering.Port 16002. Port should
+        refer to the port in use by the neighbor BTS.
         """
         if num_real != None:
-            real_ip_str = "127.0.0.1"
+            real_ip_str = "127.0.0.1:%s" % (port)
             self.neighbor_offset = (self.neighbor_offset + 1) % 2
             fake_ips  = ["127.0.9.%d" % (num+1+self.neighbor_offset) for num in range(1,len(arfcns))]
             fake_ip_str = " ".join([str(_) for _  in fake_ips])
