@@ -425,14 +425,8 @@ class HandoverController(Controller):
 
                 logging.info("to_restart: %s" % (to_restart))
                 # kill what needs to be killed
-                restarted = False
                 for bts in to_restart:
                     bts.change_arfcn(bts.current_arfcn + 10, True)
-                    restarted = True
-
-                if restarted:
-                    time.sleep(20) # to give us time to restart OpenBTS... really, really need to fix that segfault-on-start bug
-
 
                 time.sleep(self.SLEEP_TIME)
             except KeyboardInterrupt:

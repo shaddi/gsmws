@@ -128,25 +128,29 @@ class BTS(object):
         return r.std_out.strip()
 
 
-    def restart(self):
+    def restart(self, bad=True):
         """ TODO OpenBTS should really be a service, and we should really just say
         "sudo service restart openbts". But we can't, because OpenBTS is a disaster.
         EVEN WORSE, we assume that we're in OpenBTS's runloop which will restart us
         automatically. What a mess... """
         logging.warning("Restarting %s..." % self.process_name)
 
-        # HACK XXX
-        # get the pid of our transceiver and kill it, thus restarting openbts
-        r = envoy.run("ps aux").std_out.split("\n")
-        target = "transceiver 1 %d" % self.id_num
-        pid = None
-        for item in r:
-            if target in item:
-                pid = item.split()[1]
-                break
+        if bad:
+            # HACK XXX
+            # get the pid of our transceiver and kill it, thus restarting openbts
+            r = envoy.run("ps aux").std_out.split("\n")
+            target = "transceiver 1 %d" % self.id_num
+            pid = None
+            for item in r:
+                if target in item:
+                    pid = item.split()[1]
+                    break
 
-        envoy.run("kill %s" % pid)
-        time.sleep(1)
+            envoy.run("kill %s" % pid)
+            time.sleep(1)
+        else:
+            # use fucking supervisord, jesus christ what were you thinking with that hack
+            envoy.run("sudo supervisordctl restart openbts%d" % (1+self.id_num))
 
         #envoy.run("killall %s %s" % (self.process_name, self.transceiver_process))
         #time.sleep(2)
@@ -165,7 +169,7 @@ class BTS(object):
             return
         logging.warning("Updated next ARFCN to %s" % new_arfcn)
         if immediate:
-            self.restart()
+            self.restart(bad=False) # requires supervisord
 
     def set_neighbors(self, arfcns, port=16001, num_real=None):
         """
