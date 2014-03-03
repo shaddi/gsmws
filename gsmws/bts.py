@@ -30,7 +30,6 @@ class BTS(object):
             self.neighbor_table = sqlite3.connect("/var/run/NeighborTable%d.db" % (id_num + 1))
         #self.neighbor_table = sqlite3.connect(self.config("config Peering.NeighborTable.Path").split()[1]) # likewise, from the openbts.db
 
-        # TODO: really should define the PeeringPort the BTS listens on
         self.neighbors = []
         self.neighbor_offset = 0
 
@@ -103,6 +102,20 @@ class BTS(object):
     @property
     def reports(self):
         return self.decoder.reports.getall()
+
+    @property
+    def offset_correct(self):
+        """ We need to make sure the offset for the radio is set correctly,
+        else handover will fail. This shows up as phones not sending measurement
+        reports for both ARFCNs, not reselecting, etc. """
+
+        # this works because the "default" offset is defined by the setting in
+        # the radio's firmware; if the value in the DB is different from the
+        # offset, it won't be set to default, and thus the "[default]" tag
+        # won't be in the result string.
+        return "[default]" in self.config("config TRX.RadioFrequencyOffset")
+
+
 
 
     def config(self, config_str):

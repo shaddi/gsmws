@@ -317,6 +317,9 @@ class HandoverController(Controller):
             gsmd = decoder.GSMDecoder(conf['stream'], self.gsmwsdb_lock, self.gsmwsdb_location, loglvl=self.loglvl, decoder_id=cycle_count)
             bts = conf['bts_class'](conf['db_loc'], conf['openbts_proc'], conf['trans_proc'], self.loglvl, id_num=cycle_count, start_time=(now+datetime.timedelta(seconds=90*cycle_count)))
 
+            if not bts.offset_correct:
+                raise ValueError("Non-default TRX.RadioFrequencyOffset, verify radios are properly configured.")
+
             bts.init_decoder(gsmd)
 
             # set up cycle time/ignored since
