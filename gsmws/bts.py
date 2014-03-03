@@ -206,7 +206,7 @@ class BTS(object):
         holdoff = 2**20 # 12 days... YOLO! (and only check once, heh heh)
         bsic = 1 # TODO does this matter?
         for i in range(0, len(fake_ips)):
-            ip = "%s:%d" % (fake_ips[i], port)
+            ip = "%s:%d" % (fake_ips[i], 16001+self.id_num)
             if num_real:
                 arfcn = arfcns[i+1]
             else:
