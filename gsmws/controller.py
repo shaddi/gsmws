@@ -16,11 +16,16 @@ The controller has three tasks:
     2) If we detect a channel in use "near" us, we should stop OpenBTS and pick a new channel (TODO)
 """
 class Controller(object):
-    def __init__(self, db_loc, openbts_proc, trans_proc, nct, sleep, gsmwsdb, loglvl=logging.DEBUG, bts_class=bts.BTS):
+    def __init__(self, db_loc, openbts_proc, trans_proc, nct, sleep, gsmwsdb,
+                 loglvl=logging.DEBUG, bts_class=bts.BTS):
         self.OPENBTS_PROCESS_NAME=openbts_proc
         self.TRANSCEIVER_PROCESS_NAME=trans_proc
-        self.NEIGHBOR_CYCLE_TIME = nct # seconds to wait before switching up the neighbor list
-        self.SLEEP_TIME = sleep # seconds between rssi checks
+
+        # seconds to wait before switching up the neighbor list
+        self.NEIGHBOR_CYCLE_TIME = nct
+
+        # seconds between rssi checks
+        self.SLEEP_TIME = sleep
 
         self.openbtsdb_loc = db_loc
 
@@ -32,29 +37,41 @@ class Controller(object):
         self.bts_class = bts_class
 
         self.loglvl = loglvl
-        logging.basicConfig(format='%(asctime)s %(module)s %(funcName)s %(lineno)d %(levelname)s %(message)s', filename='/var/log/gsmws.log',level=loglvl)
+        logging.basicConfig(format=('%(asctime)s %(module)s %(funcName)s '
+                                    '%(lineno)d %(levelname)s %(message)s'),
+                            filename='/var/log/gsmws.log',level=loglvl)
         logging.warning("New controller started.")
 
     def initdb(self):
         with self.gsmwsdb_lock:
-            self.gsmwsdb.execute("CREATE TABLE IF NOT EXISTS AVAIL_ARFCN (TIMESTAMP TEXT NOT NULL, ARFCN INTEGER, RSSI REAL);")
-            self.gsmwsdb.execute("CREATE TABLE IF NOT EXISTS MAX_STRENGTHS (TIMESTAMP TEXT NOT NULL, ARFCN INTEGER, RSSI REAL);")
-            self.gsmwsdb.execute("CREATE TABLE IF NOT EXISTS AVG_STRENGTHS (TIMESTAMP TEXT NOT NULL, ARFCN INTEGER, RSSI REAL, COUNT INTEGER);")
+            self.gsmwsdb.execute("CREATE TABLE IF NOT EXISTS AVAIL_ARFCN "
+                                 "(TIMESTAMP TEXT NOT NULL, ARFCN INTEGER, "
+                                 "RSSI REAL);")
+            self.gsmwsdb.execute("CREATE TABLE IF NOT EXISTS MAX_STRENGTHS "
+                                 "(TIMESTAMP TEXT NOT NULL, ARFCN INTEGER, "
+                                 "RSSI REAL);")
+            self.gsmwsdb.execute("CREATE TABLE IF NOT EXISTS AVG_STRENGTHS "
+                                 "(TIMESTAMP TEXT NOT NULL, ARFCN INTEGER, "
+                                 "RSSI REAL, COUNT INTEGER);")
 
     def update_rssi_db(self, rssis):
-        # rssis: A dict of ARFCN->RSSI that's up to date as of now (it already captures our historical knowledge)
+        # rssis: A dict of ARFCN->RSSI that's up to date as of now (it already
+        # captures our historical knowledge)
         with self.gsmwsdb_lock:
             logging.debug("Updating RSSIs: %s" % rssis)
-            existing = [arfcn for res in self.gsmwsdb.execute("SELECT ARFCN FROM AVAIL_ARFCN").fetchall() for arfcn in res]
+            available_arfcns = (self.gsmwsdb.execute("SELECT ARFCN FROM AVAIL_ARFCN").fetchall())
+            existing = [arfcn for res in available_arfcns for arfcn in res]
             timestamp = datetime.datetime.now()
 
             for arfcn in existing:
                 if arfcn in rssis:
                     # do update
-                    self.gsmwsdb.execute("UPDATE AVAIL_ARFCN SET TIMESTAMP=?, RSSI=? WHERE ARFCN=?", (timestamp, rssis[arfcn], arfcn))
+                    self.gsmwsdb.execute("UPDATE AVAIL_ARFCN SET TIMESTAMP=?, RSSI=? WHERE ARFCN=?",
+                            (timestamp, rssis[arfcn], arfcn))
             for arfcn in [_ for _ in rssis if _ not in existing]:
                 # do insert
-                self.gsmwsdb.execute("INSERT INTO AVAIL_ARFCN VALUES(?,?,?)", (timestamp, arfcn, rssis[arfcn]))
+                self.gsmwsdb.execute("INSERT INTO AVAIL_ARFCN VALUES(?,?,?)",
+                            (timestamp, arfcn, rssis[arfcn]))
             self.gsmwsdb.commit()
 
             # now, expire!
@@ -86,7 +103,8 @@ class Controller(object):
     def pick_new_neighbors(self):
         """ Pick a set of ARFCNs we haven't scanned before """
         with self.gsmwsdb_lock:
-            existing = [arfcn for res in self.gsmwsdb.execute("SELECT ARFCN FROM AVAIL_ARFCN").fetchall() for arfcn in res]
+            available_arfcns = (self.gsmwsdb.execute("SELECT ARFCN FROM AVAIL_ARFCN").fetchall())
+            existing = [arfcn for res in available_arfcns for arfcn in res]
         return random.sample([_ for _ in range(1,124) if _ not in existing], 5)
 
     def main(self, stream=None, cmd=None):
@@ -97,8 +115,10 @@ class Controller(object):
                 cmd = "tshark -V -n -i any udp dst port 4729"
             stream = gsm.command_stream(cmd)
 
-        gsmd = decoder.GSMDecoder(stream, self.gsmwsdb_lock, self.gsmwsdb_location, loglvl=self.loglvl)
-        self.bts = self.bts_class(self.openbtsdb_loc, self.OPENBTS_PROCESS_NAME, self.TRANSCEIVER_PROCESS_NAME, self.loglvl)
+        gsmd = decoder.GSMDecoder(stream, self.gsmwsdb_lock,
+                                  self.gsmwsdb_location, loglvl=self.loglvl)
+        self.bts = self.bts_class(self.openbtsdb_loc, self.OPENBTS_PROCESS_NAME,
+                                  self.TRANSCEIVER_PROCESS_NAME, self.loglvl)
         self.bts.init_decoder(gsmd)
         last_cycle_time = datetime.datetime.now()
         ignored_since = datetime.datetime.now()
@@ -169,8 +189,10 @@ class HandoverController(Controller):
         self.bts_units = []
 
         self.loglvl = loglvl
-        logging.basicConfig(format='%(asctime)s %(module)s %(funcName)s %(lineno)d %(levelname)s %(message)s', filename='/var/log/gsmws.log',level=loglvl)
-        logging.warning("New DualController started.")
+        logging.basicConfig(
+            format='%(asctime)s %(module)s %(funcName)s %(lineno)d %(levelname)s %(message)s',
+            filename='/var/log/gsmws.log',level=loglvl)
+        logging.warning("New HandoverController started.")
 
     def setup_bts(self):
         cycle_offset = self.NEIGHBOR_CYCLE_TIME / float(len(self.BTS_CONF))
@@ -178,8 +200,11 @@ class HandoverController(Controller):
 
         now = datetime.datetime.now()
         for conf in self.BTS_CONF:
-            gsmd = decoder.GSMDecoder(conf['stream'], self.gsmwsdb_lock, self.gsmwsdb_location, loglvl=self.loglvl, decoder_id=cycle_count)
-            bts = conf['bts_class'](conf['db_loc'], conf['openbts_proc'], conf['trans_proc'], self.loglvl, id_num=cycle_count, start_time=(now+datetime.timedelta(seconds=90*cycle_count)))
+            gsmd = decoder.GSMDecoder(conf['stream'], self.gsmwsdb_lock, self.gsmwsdb_location,
+                                      loglvl=self.loglvl, decoder_id=cycle_count)
+            bts = conf['bts_class'](conf['db_loc'], conf['openbts_proc'], conf['trans_proc'],
+                                    self.loglvl, id_num=cycle_count,
+                                    start_time=(now+datetime.timedelta(seconds=90*cycle_count)))
 
             if not bts.offset_correct:
                 raise ValueError("Non-default TRX.RadioFrequencyOffset, verify radios are properly configured.")
@@ -188,7 +213,8 @@ class HandoverController(Controller):
 
             # set up cycle time/ignored since
             bts.ignored_since = now
-            bts.last_cycle_time = now - datetime.timedelta(seconds = (cycle_count*cycle_offset + self.NEIGHBOR_CYCLE_TIME)) # keep them out of sync, but make sure they start
+            # keep them out of sync, but make sure they start
+            bts.last_cycle_time = now - datetime.timedelta(seconds = (cycle_count*cycle_offset + self.NEIGHBOR_CYCLE_TIME))
 
             self.bts_units.append(bts)
             cycle_count += 1
@@ -199,9 +225,14 @@ class HandoverController(Controller):
             random_arfcns = [x.current_arfcn+10 for x in self.bts_units if x.current_arfcn!=None]
         else:
             with self.gsmwsdb_lock:
-                existing = [arfcn for res in self.gsmwsdb.execute("SELECT ARFCN FROM AVAIL_ARFCN").fetchall() for arfcn in res]
-            random_arfcns = random.sample([_ for _ in range(1,124) if (_ not in existing and _ not in other_arfcns)], 5 - len(other_arfcns))
-        logging.info("BTS %d: Current ARFCN=%s Other ARFCNs: %s Random ARFCNs: %s" % (bts_id_num, self.bts_units[bts_id_num].current_arfcn, other_arfcns, random_arfcns))
+                available_arfcns = self.gsmwsdb.execute("SELECT ARFCN FROM AVAIL_ARFCN").fetchall()
+                existing = [arfcn for res in available_arfcns for arfcn in res]
+            random_arfcns = random.sample([_ for _ in range(1,124) if
+                                          (_ not in existing and _ not in other_arfcns)],
+                                          5 - len(other_arfcns))
+        logging.info("BTS %d: Current ARFCN=%s Other ARFCNs: %s Random ARFCNs: %s"
+                     % (bts_id_num, self.bts_units[bts_id_num].current_arfcn,
+                        other_arfcns, random_arfcns))
         return other_arfcns + random_arfcns
 
     def main(self):
@@ -220,7 +251,8 @@ class HandoverController(Controller):
                         bts.decoder.ignore_reports = False
 
                 for bts in self.bts_units:
-                    logging.info("BTS %d. Reported ARFCN=%s Intended Neighbors=%s Reported Neighbors=%s" % (bts.id_num, bts.current_arfcn, sorted(bts.neighbors), sorted(bts.last_arfcns)))
+                    logging.info("BTS %d. Reported ARFCN=%s Intended Neighbors=%s Reported Neighbors=%s"
+                                 % (bts.id_num, bts.current_arfcn, sorted(bts.neighbors), sorted(bts.last_arfcns)))
 
                 for bts in self.bts_units:
                     """
@@ -272,7 +304,9 @@ class HandoverController(Controller):
                     self.update_rssi_db(rssis)
                     logging.debug("Safe ARFCNs (BTS %d): %s" % (bts.id_num, str(self.safe_arfcns())))
 
-                # check each BTS's reports. If we find a report that exceeds MAX_DELTA for an off BTS in it, then we need to restart that BTS.
+                # check each BTS's reports. If we find a report that exceeds
+                # MAX_DELTA for an off BTS in it, then we need to restart that
+                # BTS.
                 to_restart = set()
 
                 arfcn_to_bts = dict(zip([b.current_arfcn for b in self.bts_units], [b for b in self.bts_units]))
@@ -283,8 +317,11 @@ class HandoverController(Controller):
                 for r in reports:
                     for t in r:
                         if t in arfcn_to_bts:
-                            logging.debug("Report bts %d (ARFCN %s) is_off=%s report=%d" % (arfcn_to_bts[t].id_num, t, arfcn_to_bts[t].is_off(), r[t]))
-                            if r[t] > 10 and arfcn_to_bts[t].is_off(): # 10 is a good threshold... could be set lower, but w/e
+                            logging.debug("Report bts %d (ARFCN %s) is_off=%s report=%d"
+                                          % (arfcn_to_bts[t].id_num, t, arfcn_to_bts[t].is_off(), r[t]))
+
+                            # 10 is a good threshold... could be set lower, but w/e
+                            if r[t] > 10 and arfcn_to_bts[t].is_off():
                                 to_restart |= set([arfcn_to_bts[t],])
 
                 logging.info("to_restart: %s" % (to_restart))
