@@ -27,6 +27,10 @@ class MeasurementReportList(object):
 
 
 class GSMDecoder(threading.Thread):
+    """
+    This is responsible for managing the packet stream from tshark, processing
+    reports, and storing the data.
+    """
     def __init__(self, stream, db_lock, gsmwsdb_location="/tmp/gsmws.db", maxlen=100, loglvl=logging.INFO, decoder_id=0):
         threading.Thread.__init__(self)
         self.stream = stream
@@ -110,6 +114,11 @@ class GSMDecoder(threading.Thread):
         self._populate_strengths()
 
         last_rssi_update = datetime.datetime.now()
+
+        # Main processing loop. We read output from tshark line by line
+        # breaking every time we find a line that is unindented. Unindented
+        # line = new message. The message is then handed off to process(),
+        # which extracts relevant information from it.
         for line in self.stream:
             self.__write_rssi()
             if line.startswith("    "):
