@@ -41,8 +41,8 @@ class EventDecoder(threading.Thread):
 
         # Connect to OpenBTS event stream
         self.context = zmq.Context()
-        self.socket = context.socket(zmq.SUB)
-        self.socket.connect("tcp://localhost:%s" % port)
+        self.socket = self.context.socket(zmq.SUB)
+        self.socket.connect(host)
         self.socket.setsockopt(zmq.SUBSCRIBE, "")
 
         self.reports = MeasurementReportList(maxlen)
@@ -52,8 +52,9 @@ class EventDecoder(threading.Thread):
         Main processing loop. Run forever!
         """
         while True:
-            msg = socket.recv()
+            msg = self.socket.recv()
             self.reports.put(msg)
+
 
 class GSMDecoder(threading.Thread):
     """
