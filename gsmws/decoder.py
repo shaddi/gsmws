@@ -5,6 +5,7 @@ import logging
 import datetime
 import Queue
 import sqlite3
+import zmq
 
 class MeasurementReportList(object):
     def __init__(self, maxlen=10000):
@@ -25,6 +26,34 @@ class MeasurementReportList(object):
             reports, self.reports = self.reports, collections.deque(maxlen=self.maxlen)
         return list(reports)
 
+class EventDecoder(threading.Thread):
+    """
+    The EventDecoder listens for PhysicalStatus API events from OpenBTS and
+    stores them in an in-memory MeasurementReportList. Unlike GSMDecoder, the
+    EventDecoder does no further processing on them -- they are passed along
+    as-is for interpretation later. We don't even decode the JSON, as these are
+    intended to be pulled via an API from a BTS, so why bother?
+    """
+    def __init__(self, host="tcp://localhost:45160", maxlen=1000, loglvl=logging.INFO):
+        threading.Thread.__init__(self)
+        logging.basicConfig(format='%(asctime)s %(module)s %(funcName)s %(lineno)d %(levelname)s %(message)s',
+                            filename='/var/log/gsmws.log',level=loglvl)
+
+        # Connect to OpenBTS event stream
+        self.context = zmq.Context()
+        self.socket = context.socket(zmq.SUB)
+        self.socket.connect("tcp://localhost:%s" % port)
+        self.socket.setsockopt(zmq.SUBSCRIBE, "")
+
+        self.reports = MeasurementReportList(maxlen)
+
+    def run(self):
+        """
+        Main processing loop. Run forever!
+        """
+        while True:
+            msg = socket.recv()
+            self.reports.put(msg)
 
 class GSMDecoder(threading.Thread):
     """
