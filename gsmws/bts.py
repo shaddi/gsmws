@@ -3,9 +3,9 @@ import sqlite3
 import logging
 
 import envoy
-
 import openbts
 
+import decoder
 
 class BTS(object):
     """
@@ -24,15 +24,10 @@ class BTS(object):
         self.neighbor_table = sqlite3.connect(neighbor_table_loc)
         self.neighbors = []
         self.loglvl = loglvl
-        self.decoder = None # we can't create our own, since we need a global gsmwsdb_lock from controller
 
-
-    def init_decoder(self, gsm_decoder):
-        """ Start the decoder for this BTS. We do this separately since we want
-        to be able to create the BTS external to the controller, but we don't
-        have a global DB lock until the controller starts."""
-        self.decoder = gsm_decoder
+        self.decoder = decoder.EventDecoder()
         self.decoder.start()
+
 
     def is_off(self):
         """
@@ -44,14 +39,16 @@ class BTS(object):
 
     @property
     def current_arfcn(self):
-        return self.decoder.current_arfcn
-
-    @property
-    def last_arfcns(self):
-        return self.decoder.last_arfcns
+        """
+        Check for the current ARFCN in use, according to OpenBTS.
+        """
+        return int(self.node_manager.read_config("GSM.Radio.C0").data['value'])
 
     @property
     def reports(self):
+        """
+        Gets all the reports from the decoder.
+        """
         return self.decoder.reports.getall()
 
     @property
@@ -124,16 +121,15 @@ class BTS(object):
     def change_arfcn(self, new_arfcn, immediate=False):
         """ Change OpenBTS to use a new ARFCN. By default, just update the DB, but
         don't actually restart OpenBTS. If immediate=True, restart OpenBTS too. """
-        self.("GSM.Radio.C0 %s" % new_arfcn)
         try:
-            assert int(new_arfcn) <= 124
-            assert int(new_arfcn) > 0
-        except:
-            logging.error("Invalid ARFCN: %s" % new_arfcn)
-            return
-        logging.warning("Updated next ARFCN to %s" % new_arfcn)
+            self.node_manager.update_config("GSM.Radio.C0", new_arfcn)
+        except openbts.exceptions.InvalidRequestError:
+            return False
+        logging.warning("Updated ARFCN to %s" % new_arfcn)
         if immediate:
-            self.restart(bad=False) # requires supervisord
+            # this is a blocking call
+            self.restart()
+        return True
 
 
     def set_neighbors(self, arfcns, real=[]):
