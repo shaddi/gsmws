@@ -1,3 +1,7 @@
+"""
+This file is part of GSMWS.
+"""
+
 import datetime
 import sqlite3
 import logging

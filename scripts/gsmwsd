@@ -3,6 +3,8 @@
 """
 gsmwsd: API server for a GSMWS BTS
 
+This file is part of GSMWS.
+
 """
 
 from SimpleXMLRPCServer import SimpleXMLRPCServer

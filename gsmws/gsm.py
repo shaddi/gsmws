@@ -1,3 +1,7 @@
+"""
+This file is part of GSMWS.
+"""
+
 import subprocess
 import sys
 import datetime

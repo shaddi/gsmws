@@ -1,3 +1,7 @@
+"""
+This file is part of GSMWS.
+"""
+
 import time
 import datetime
 import random

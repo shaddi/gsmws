@@ -1,5 +1,9 @@
 #!/usr/bin/python
 
+"""
+This file is part of GSMWS.
+"""
+
 if __name__ == "__main__":
     import argparse
     import logging

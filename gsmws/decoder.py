@@ -1,3 +1,7 @@
+"""
+This file is part of GSMWS.
+"""
+
 import gsm
 import collections
 import threading
