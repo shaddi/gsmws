@@ -57,6 +57,8 @@ class EventDecoder(threading.Thread):
 
 class GSMDecoder(threading.Thread):
     """
+    DEPRECATED
+
     This is responsible for managing the packet stream from tshark, processing
     reports, and storing the data.
     """
@@ -84,6 +86,7 @@ class GSMDecoder(threading.Thread):
         self.max_strengths = {} # max strength ever seen for a given arfcn
         self.recent_strengths = {} # last 100 measurement reports for each arfcn
         logging.basicConfig(format='%(asctime)s %(module)s %(funcName)s %(lineno)d %(levelname)s %(message)s', filename='/var/log/gsmws.log',level=loglvl)
+        logging.warn("GSMDecoder is deprecated! Use at your own risk.")
 
 
     def _populate_strengths(self):
@@ -236,12 +239,3 @@ class GSMDecoder(threading.Thread):
             self.current_arfcn = gsmtap.arfcn
             logging.debug("(decoder %d) GSMTAP: Current ARFCN=%s" % (self.decoder_id, str(gsmtap.arfcn)))
 
-
-if __name__ == "__main__":
-    import sys
-    import timeit
-
-    gsmd = GSMDecoder(sys.stdin)
-
-    duration = timeit.timeit(gsmd.run, number=1)
-    print "Processed %d headers in %.4f seconds (%.2f msgs/sec)" % (gsmd.msgs_seen, duration, gsmd.msgs_seen / duration)
