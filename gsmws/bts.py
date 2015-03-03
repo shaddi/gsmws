@@ -26,6 +26,7 @@ class BTS(object):
         self.loglvl = loglvl
 
         self.decoder = decoder.EventDecoder()
+        self.decoder.daemon = True
         self.decoder.start()
 
 
@@ -37,21 +38,18 @@ class BTS(object):
                     .read_config('TRX.TxAttenOffset').data['value'])
         return txatten > 90
 
-    @property
     def current_arfcn(self):
         """
         Check for the current ARFCN in use, according to OpenBTS.
         """
         return int(self.node_manager.read_config("GSM.Radio.C0").data['value'])
 
-    @property
     def reports(self):
         """
         Gets all the reports from the decoder.
         """
         return self.decoder.reports.getall()
 
-    @property
     def offset_correct(self):
         """ We need to make sure the offset for the radio is set correctly,
         else handover will fail. This shows up as phones not sending measurement
