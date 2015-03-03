@@ -1,0 +1,20 @@
+#!/usr/bin/python
+
+"""
+gsmwsd: API server for a GSMWS BTS
+
+"""
+
+from SimpleXMLRPCServer import SimpleXMLRPCServer
+
+import gsmws.bts
+
+server = SimpleXMLRPCServer(("localhost", 8000))
+
+bts = gsmws.bts.BTS()
+server.register_instance(bts)
+
+try:
+    server.serve_forever()
+except KeyboardInterrupt:
+    server.server_close()
