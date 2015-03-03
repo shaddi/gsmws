@@ -173,9 +173,17 @@ class BTS(object):
         self.neighbors = arfcns
 
         # set IPs in openbts
-        neighbor_string = "%s %s" % (real_ip_str, fake_ip_str)
-        r = self.node_manager.update_config("GSM.Neighbors", neighbor_string)
-        logging.debug("Updating neighbors (%s) '%s': '%s'" % (arfcns, neighbor_string, r.data))
+        # leading space will choke OpenBTS
+        neighbor_string = ("%s %s" % (real_ip_str, fake_ip_str)).strip()
+        try:
+            r = self.node_manager.update_config("GSM.Neighbors", neighbor_string)
+            logging.debug("Updating neighbors (%s) '%s': '%s'" % (arfcns, neighbor_string, r.data))
+        except openbts.exceptions.InvalidResponseError:
+            # OpenBTS won't accept the same list of neighbor IPs twice, so this
+            # will come up every time we set the same number of ARFCNs to scan.
+            # Totally normal.
+            logging.debug("neighbors unchanged")
+
 
         # Update the neighbor table for each fake neighbor. Real neighbors
         # should be updated automatically on their own.
